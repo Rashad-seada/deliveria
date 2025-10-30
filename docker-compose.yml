@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  deliveria:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: deliveria
+    volumes:
+      - ./src:/deliveria/src:ro
+      - ~/deliveria_upload:/deliveria/deliveria_upload
+    ports:
+      - "8550:8550"
+    restart: always
