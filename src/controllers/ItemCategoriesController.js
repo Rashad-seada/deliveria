@@ -2,22 +2,37 @@ const ItemCategory = require("../models/ItemCategorites");
 
 module.exports.createItemCategory = async (req, res) => {
     try {
-        let itemCategory = new ItemCategory({
-            restaurant_id: req.body.decoded.id,
-            name_en: req.body.name_en.trim(),
-            name_ar: req.body.name_ar.trim(),
-        })
+        const { name_en, name_ar } = req.body;
 
-        itemCategory.save()
-            .then(response => {
-                return res.status(200).json({
-                    message: "Item category is created"
-                })
-            })
+        if (!name_en || !name_ar) {
+            return res.status(400).json({
+                message: "English and Arabic names are required."
+            });
+        }
+
+        let itemCategory = new ItemCategory({
+            restaurant_id: req.decoded.id, // Correctly access decoded token from req
+            name_en: name_en.trim(),
+            name_ar: name_ar.trim(),
+        });
+
+        const savedCategory = await itemCategory.save();
+
+        return res.status(201).json({
+            message: "Item category created successfully",
+            itemCategory: savedCategory
+        });
+
     } catch (error) {
-        return res.json({
-            message: "Error"
-        })
+        console.error("Error creating item category:", error);
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({ message: "Validation error", errors });
+        }
+        return res.status(500).json({
+            message: "Server error while creating item category",
+            error: error.message
+        });
     }
 }
 

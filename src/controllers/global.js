@@ -1,7 +1,6 @@
 const FBtoken = require("../models/FBtoken");
 const https = require('https');
 const Notification = require("../models/Notifications");
-require("dotenv").config();
 
 module.exports = {
     not_select: [

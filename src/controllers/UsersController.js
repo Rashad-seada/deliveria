@@ -6,11 +6,10 @@ const User = require("../models/Users");
 const Agent = require("../models/Agents");
 const Admin = require("../models/Admin");
 const Order = require("../models/Orders");
-require("dotenv").config();
 
 module.exports.signUp = async (req, res) => {
     const body = req.body;
-    const isNewUser = await User.isThisPhoneUse(body.phone)
+    const isNewUser = await User.isPhoneTaken(body.phone)
     if (isNewUser) {
         return res.json({
             success: false,
@@ -45,6 +44,7 @@ module.exports.signUp = async (req, res) => {
         phone: body.phone.trim(),
         password: body.password.trim(),
         email: "N/A",
+        token:body.token || null,
         ban: false,
     })
 
@@ -59,51 +59,72 @@ module.exports.signUp = async (req, res) => {
 
 module.exports.login = async (req, res, next) => {
     try {
-        var phone = req.body.phone
-        var password = req.body.password
-        const isNewUser = await User.isThisPhoneUse(phone)
-        if (!isNewUser) {
-            return res.json({
-                message: 'Phone or password is invalid'
-            })
+        const { phone, password } = req.body;
+        
+        if (!phone || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Phone and password are required'
+            });
         }
 
-        User.findOne({ phone: phone })
-            .then(async (user) => {
-                if (user) {
-                    bcrypt.compare(password, user.password, async function (err, result) {
-                        if (err) {
-                            res.json({
-                                error: err
-                            })
-                        }
+        const user = await User.findOne({ phone: phone });
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials' // رسالة أكثر أماناً
+            });
+        }
 
-                        if (result) {
-                            let token = jwt.sign({ phone: user.phone, id: user._id, user_type: "User" }, process.env.JWT_KEY)
-                            user.password = undefined
-                            return res.status(200).json({
-                                message: 'Login Successful!',
-                                token: token,
-                                info: user
-                            })
+        // التحقق من حالة الحظر
+        if (user.ban) {
+            return res.status(403).json({
+                success: false,
+                message: 'Your account is temporarily suspended'
+            });
+        }
 
-                        } else {
-                            return res.json({
-                                message: "Phone or password is invalid"
-                            })
-                        }
-                    })
-                } else {
-                    res.json({
-                        message: 'Phone or password is invalid'
-                    })
-                }
-            })
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid credentials" // رسالة أكثر أماناً
+            });
+        }
+
+        // إنشاء التوكن مع البيانات الصحيحة
+        let token = jwt.sign({ 
+            id: user._id.toString(), // تحويل ObjectId إلى string
+            phone: user.phone, 
+            user_type: "User" 
+        }, process.env.JWT_KEY, { expiresIn: '24h' });
+
+        // إرجاع البيانات بدون الباسوورد
+        const userInfo = {
+            _id: user._id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            phone: user.phone,
+            email: user.email,
+            token: user.token,
+            ban: user.ban,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        };
+
+        return res.status(200).json({
+            success: true,
+            message: 'Login Successful!',
+            token: token,
+            info: userInfo
+        });
+
     } catch (error) {
-        console.log(error)
-        res.json({
-            message: "Error"
-        })
+        console.log('Login error:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error during login"
+        });
     }
 }
 
@@ -133,40 +154,46 @@ module.exports.getAllUsers = async (req, res) => {
 
 module.exports.updateProfile = async (req, res) => {
     try {
-        const body = req.body
+        const body = req.body;
         let update = {
             first_name: body.first_name.trim(),
             last_name: body.last_name.trim(),
             email: body.email
         }
 
-        User.findByIdAndUpdate(req.body.decoded.id, { $set: update }, { new: true }).then(response => {
+        // استخدام req.decoded بدلاً من req.body.decoded
+        User.findByIdAndUpdate(req.decoded.id, { $set: update }, { new: true }).then(response => {
             return res.status(200).json({
-                message: "Profile is updated"
+                success: true,
+                message: "Profile updated successfully"
             })
         })
     } catch (error) {
         console.log(error)
-        return res.json({
-            message: "Error"
+        return res.status(500).json({
+            success: false,
+            message: "Error updating profile"
         })
     }
 }
 
 module.exports.myOrder = async (req, res) => {
     try {
-        Order.find({ user_id: req.body.decoded.id }).populate({
+        // استخدام req.decoded بدلاً من req.body.decoded
+        const orders = await Order.find({ user_id: req.decoded.id }).populate({
             path: 'orders.restaurant_id',
             select: 'logo name phone'
-        }).then(orders => {
-            return res.status(200).json({
-                orders: orders
-            });
-        })
+        });
+        
+        return res.status(200).json({
+            success: true,
+            orders: orders
+        });
     } catch (error) {
         console.log(error)
-        return res.json({
-            message: "Error"
+        return res.status(500).json({
+            success: false,
+            message: "Error fetching orders"
         })
     }
 }

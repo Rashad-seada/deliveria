@@ -1,0 +1,1004 @@
+{
+    "info": {
+        "name": "Deliveria - Complete API Collection",
+        "description": "A complete and updated Postman collection for all Deliveria API endpoints, organized by user role (Admin, Restaurant, User, Agent).",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "[SETUP] 1. Admin - Categories",
+            "item": [
+                {
+                    "name": "Admin Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+                                    "pm.collectionVariables.set(\"admin_token\", pm.response.json().token);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"01000000000\",\n    \"password\": \"admin_password_123\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/admins/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "admins",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Super Category",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"super_category_id\", pm.response.json().category.id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "logo",
+                                    "type": "file",
+                                    "src": "/C:/Users/path/to/your/image.png"
+                                },
+                                {
+                                    "key": "name_en",
+                                    "value": "Groceries",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "name_ar",
+                                    "value": "بقالة",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/super_categories/create",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "super_categories",
+                                "create"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Sub Category",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"sub_category_id\", pm.response.json().subCategory._id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name_en\": \"Dairy & Eggs\",\n    \"name_ar\": \"ألبان وبيض\",\n    \"super_category_id\": \"{{super_category_id}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/sub_categories/create",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "sub_categories",
+                                "create"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[SETUP] 2. Admin - Restaurant & Agent",
+            "item": [
+                {
+                    "name": "Create Restaurant",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"restaurant_id\", pm.response.json().restaurant.id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "logo",
+                                    "type": "file",
+                                    "src": "/C:/Users/path/to/your/logo.png"
+                                },
+                                {
+                                    "key": "photo",
+                                    "type": "file",
+                                    "src": "/C:/Users/path/to/your/photo.png"
+                                },
+                                {
+                                    "key": "name",
+                                    "value": "The Corner Store",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "phone",
+                                    "value": "01234567890",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "password",
+                                    "value": "resto_pass_123",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "about_us",
+                                    "value": "Fresh groceries delivered fast.",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "location_map",
+                                    "value": "https://www.google.com/maps/place/Tahrir+Square,+Qasr+Ad+Dobarah,+Abdeen,+Cairo+Governorate+4272077,+Egypt/@30.04442,31.2357117,17z",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "open_hour",
+                                    "value": "08:00",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "close_hour",
+                                    "value": "22:00",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "estimated_time",
+                                    "value": "20",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "super_category",
+                                    "value": "[\"{{super_category_id}}\"]",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "sub_category",
+                                    "value": "[\"{{sub_category_id}}\"]",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/restaurants/create",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "create"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Agent",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Delivery Agent 1\",\n    \"phone\": \"01555555555\",\n    \"password\": \"agent_pass_123\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/agents/create",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "create"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[SETUP] 3. Restaurant - Items",
+            "item": [
+                {
+                    "name": "Restaurant Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"restaurant_token\", pm.response.json().token);",
+                                    "pm.collectionVariables.set(\"restaurant_id\", pm.response.json().restaurant._id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"01234567890\",\n    \"password\": \"resto_pass_123\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/restaurants/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Item Category",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"item_category_id\", pm.response.json().itemCategory._id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{restaurant_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name_en\": \"Milk & Cheese\",\n    \"name_ar\": \"لبن وجبن\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/item_categories/create",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "item_categories",
+                                "create"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Item",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{restaurant_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "photo",
+                                    "type": "file",
+                                    "src": "/C:/Users/path/to/your/item.png"
+                                },
+                                {
+                                    "key": "name",
+                                    "value": "Fresh Milk",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "description",
+                                    "value": "1L full cream milk.",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "item_category",
+                                    "value": "{{item_category_id}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "have_option",
+                                    "value": "false",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "sizes",
+                                    "value": "[{\"size\":\"1L\",\"price_before\":25,\"price_after\":25}]",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "toppings",
+                                    "value": "[]",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/items/create",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "items",
+                                "create"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[WORKFLOW] 1. Customer",
+            "item": [
+                {
+                    "name": "Signup",
+                    "request": {
+                        "method": "POST",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"first_name\": \"Customer\",\n    \"last_name\": \"One\",\n    \"phone\": \"01122334455\",\n    \"password\": \"customer_pass\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/users/signup",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "users",
+                                "signup"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"customer_token\", pm.response.json().token);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"01122334455\",\n    \"password\": \"customer_pass\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/users/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "users",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Address",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"address_id\", pm.response.json().address._id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"address_title\": \"Home\",\n    \"phone\": \"01122334455\",\n    \"details\": \"My Street, Building 1\",\n    \"latitude\": 30.0444,\n    \"longitude\": 31.2357,\n    \"default\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/address/create",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "address",
+                                "create"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Nearby Restaurants",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/restaurants/home/{{latitude}}/{{longitude}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "restaurants",
+                                "home",
+                                "{{latitude}}",
+                                "{{longitude}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Items for Restaurant",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"item_id\", pm.response.json().response.items[0]._id);",
+                                    "pm.collectionVariables.set(\"size_id\", pm.response.json().response.items[0].sizes[0]._id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/items/all_items_for_restaurant/{{restaurant_id}}/all",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "items",
+                                "all_items_for_restaurant",
+                                "{{restaurant_id}}",
+                                "all"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[WORKFLOW] 2. Cart & Order",
+            "item": [
+                {
+                    "name": "Add Item to Cart",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"item_id\": \"{{item_id}}\",\n    \"size\": \"{{size_id}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/carts/add",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "carts",
+                                "add"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Cart",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/carts",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "carts"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"order_id\", pm.response.json().order._id);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"address_id\": \"{{address_id}}\",\n    \"payment_type\": \"Cash\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/orders/add",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "orders",
+                                "add"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get My Orders",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/orders",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "orders"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Agent Location (Navigation)",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{agent_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"latitude\": 30.0561,\n    \"longitude\": 31.2394\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/delivery/location",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "delivery",
+                                "location"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "[WORKFLOW] 3. Agent",
+            "item": [
+                {
+                    "name": "Agent Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.collectionVariables.set(\"agent_token\", pm.response.json().token);"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"01555555555\",\n    \"password\": \"agent_pass_123\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/agents/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "agents",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Available Orders",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{agent_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/delivery/available",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "delivery",
+                                "available"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Accept Order",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{agent_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/delivery/accept/{{order_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "delivery",
+                                "accept",
+                                "{{order_id}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Order Status to 'On the way'",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{agent_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"status\": \"On the way\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/delivery/order/{{order_id}}/status",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "delivery",
+                                "order",
+                                "{{order_id}}",
+                                "status"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Update Order Status to 'Delivered'",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{agent_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"status\": \"Delivered\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/delivery/order/{{order_id}}/status",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "delivery",
+                                "order",
+                                "{{order_id}}",
+                                "status"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        },
+        {
+            "listen": "test",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    ""
+                ]
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8550"
+        },
+        {
+            "key": "admin_token",
+            "value": ""
+        },
+        {
+            "key": "restaurant_token",
+            "value": ""
+        },
+        {
+            "key": "customer_token",
+            "value": ""
+        },
+        {
+            "key": "agent_token",
+            "value": ""
+        },
+        {
+            "key": "super_category_id",
+            "value": ""
+        },
+        {
+            "key": "sub_category_id",
+            "value": ""
+        },
+        {
+            "key": "item_category_id",
+            "value": ""
+        },
+        {
+            "key": "restaurant_id",
+            "value": ""
+        },
+        {
+            "key": "item_id",
+            "value": ""
+        },
+        {
+            "key": "size_id",
+            "value": ""
+        },
+        {
+            "key": "address_id",
+            "value": ""
+        },
+        {
+            "key": "order_id",
+            "value": ""
+        },
+        {
+            "key": "latitude",
+            "value": "30.0444"
+        },
+        {
+            "key": "longitude",
+            "value": "31.2357"
+        },
+        {
+            "key": "coupon_code",
+            "value": "SALE20"
+        }
+    ]
+}

@@ -1,217 +1,117 @@
+// models/Order.js
 const mongoose = require("mongoose");
-const Restaurant = require("./Restaurants");
 const Schema = mongoose.Schema;
 
+require('./Restaurants'); // This ensures the Restaurant model is registered before Order model uses it.
 const orderSchema = new Schema(
-    {
-        user_id: {
-            type: Schema.Types.ObjectId,
-            ref: "user",
-            required: true,
-        },
-        order_status: {
-            type: String,
-            enum: [
-                'PENDING',          // عند إنشاء الطلب
-                'CONFIRMED',        // تم تأكيد الطلب من المطعم
-                'PREPARING',        // جاري التحضير
-                'READY',           // جاهز للاستلام
-                'PICKED_UP',       // تم الاستلام من المندوب
-                'ON_WAY',          // في الطريق
-                'DELIVERED',       // تم التوصيل
-                'CANCELLED'        // تم الإلغاء
-            ],
-            default: 'PENDING'
-        },
-        status_timeline: [{
-            status: {
-                type: String,
-                required: true
-            },
-            timestamp: {
-                type: Date,
-                default: Date.now
-            },
-            note: String
-        }],
-        agent: {
-            agent_id: {
-                type: Schema.Types.ObjectId,
-                ref: "agent"
-            },
-            assigned_at: Date,
-            pickup_time: Date,
-            delivery_time: Date
-        },
-        delivery_details: {
-            estimated_time: Number,  // بالدقائق
-            actual_time: Number,     // بالدقائق
-            distance: Number,        // بالكيلومترات
-            delivery_fee: Number
-        },
-        rating: {
-            restaurant_rating: {
-                score: { type: Number, min: 1, max: 5 },
-                comment: String
-            },
-            delivery_rating: {
-                score: { type: Number, min: 1, max: 5 },
-                comment: String
-            }
-        },
-        address: {
-            address_title: {
-                type: String,
-                required: true,
-            },
-            phone: {
-                type: String,
-                required: true,
-            },
-            details: {
-                type: String,
-                required: true,
-            },
-            coordinates: {
-                latitude: {
-                    type: String,
-                },
-                longitude: {
-                    type: String,
-                }
-            },
-        },
-        orders: [
-            {
-                restaurant_id: {
-                    type: Schema.Types.ObjectId,
-                    ref: "restaurant",
-                    required: true,
-                },
-                items: [
-                    {
-                        item_details: {
-                            item_id: {
-                                type: String,
-                                required: true,
-                            },
-                            name: {
-                                type: String,
-                                required: true,
-                            },
-                            description: {
-                                type: String,
-                            },
-                            photo: {
-                                type: String,
-                                required: true,
-                            },
-                        },
-                        size_details: {
-                            size_id: {
-                                type: String,
-                                required: true,
-                            },
-                            size: {
-                                type: String,
-                                required: true,
-                            },
-                            price_before: {
-                                type: Number,
-                                required: true,
-                            },
-                            price_after: {
-                                type: Number,
-                                required: true,
-                            },
-                            offer: {
-                                type: Number,
-                                required: true,
-                            },
-                            quantity: {
-                                type: Number,
-                                required: true,
-                            },
-                            price_Of_quantity: {
-                                type: Number,
-                                required: true,
-                            },
-                        },
-                        topping_details: [{
-                            topping_id: {
-                                type: String
-                            },
-                            topping: {
-                                type: String
-                            },
-                            price: {
-                                type: Number
-                            },
-                            quantity: {
-                                type: Number
-                            },
-                            price_Of_quantity: {
-                                type: Number
-                            }
-                        }],
-                        description: {
-                            type: String
-                        },
-                        total_price: {
-                            type: Number
-                        }
-                    }
-                ],
-                price_of_restaurant: {
-                    type: Number,
-                    required: true
-                },
-                status: {
-                    type: String,
-                    enum: ["New", "Preparing", "Ready for pickup", "Out of delivery", "Completed", "Pick up", "On the way", "Delivered", "Canceled", "Accepted"],
-                    required: true
-                },
-                cancel_me: {
-                    type: Boolean,
-                    required: true
-                },
-            },
-        ],
-        final_price_without_delivery_cost: {
-            type: Number,
-            required: true,
-        },
-        final_delivery_cost: {
-            type: Number,
-            required: true,
-        },
-        final_price: {
-            type: Number,
-            required: true,
-        },
-        delivery_type: {
-            type: String,
-            required: true,
-        },
-        delivery_id: {
-            type: Schema.Types.ObjectId,
-        },
-        payment_type: {
-            type: String,
-            required: true
-        },
-        status: {
-            type: String,
-            enum: ["New", "Preparing", "Ready for pickup", "Out of delivery", "Completed", "Pick up", "On the way", "Delivered", "Canceled", "Accepted"],
-            required: true
-        },
-        order_id: {
-            type: Number,
-            required: true
-        }
+  {
+    user_id: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
+    order_type: { type: String, enum: ["Single", "Multi"], required: true },
+
+    order_status: {
+      type: String,
+      enum: [
+        "Pending Approval", // بانتظار الموافقة
+        "Preparing",        // جاري التحضير
+        "Ready for Delivery", // جاهز للتسليم
+        "On the way",       // تم الاستلام / في الطريق
+        "Delivered",        // تم التسليم
+        "Completed",        // مكتمل (بعد التسليم)
+        "Canceled"          // ملغي
+      ],
+      default: "Pending Approval"
     },
-    { timestamps: true }
+
+    status_timeline: [
+      {
+        status: String,
+        timestamp: { type: Date, default: Date.now },
+        note: String
+      }
+    ],
+
+    agent: {
+      agent_id: { type: Schema.Types.ObjectId, ref: "Agent" },
+      assigned_at: Date,
+      pickup_time: Date,
+      delivery_time: Date
+    },
+
+    delivery_details: {
+      estimated_time: Number, // بالدقائق
+      actual_time: Number,
+      distance: Number,       // بالكيلومترات
+      delivery_fee: Number
+    },
+
+    address: {
+      address_title: String,
+      phone: String,
+      details: String,
+      coordinates: {
+        latitude: Number,
+        longitude: Number
+      }
+    },
+
+    orders: [
+      {
+        restaurant_id: {
+          type: Schema.Types.ObjectId,
+          ref: "restaurant",
+          required: true
+        },
+        items: [
+          {
+            item_details: {
+              item_id: String,
+              name: String,
+              description: String,
+              photo: String
+            },
+            size_details: {
+              size_id: String,
+              size: String,
+              price_before: Number,
+              price_after: Number,
+              offer: Number,
+              quantity: Number,
+              price_Of_quantity: Number
+            },
+            topping_details: [
+              {
+                topping_id: String,
+                topping: String,
+                price: Number,
+                quantity: Number,
+                price_Of_quantity: Number
+              }
+            ],
+            description: String,
+            total_price: Number
+          }
+        ],
+        price_of_restaurant: Number,
+        status: {
+          type: String,
+          default: "Pending Approval"
+        },
+        cancel_me: Boolean
+      }
+    ],
+
+    final_price_without_delivery_cost: Number,
+    final_delivery_cost: Number,
+    final_price: Number,
+
+    delivery_type: String,
+    payment_type: String,
+
+    status: { type: String, default: "Pending Approval" },
+    order_id: Number
+  },
+  { timestamps: true } // ← هنا كان الخطأ في الكود السابق
 );
 
-const Order = mongoose.model("order", orderSchema);
-module.exports = Order;
+module.exports = mongoose.model("Order", orderSchema);

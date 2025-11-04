@@ -1,3 +1,4 @@
+
 const Order = require("../models/Orders");
 const CouponCode = require("../models/CouponCodes");
 const Cart = require("../models/Carts");
@@ -5,419 +6,259 @@ const User = require("../models/Users");
 const Address = require("../models/Address");
 const Restaurant = require("../models/Restaurants");
 const Item = require("../models/Items");
+const Counter = require("../models/Counter");
 const { setTimeout } = require('timers/promises');
 const Admin = require("../models/Admin");
 const { sendNotification } = require("./global");
 
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    // Radius of the Earth in kilometers
-    const R = 6371;
+async function getNextSequenceValue(sequenceName) {
+    const sequenceDocument = await Counter.findByIdAndUpdate(
+        sequenceName,
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+    );
+    return sequenceDocument.seq;
+}
 
-    // Convert degrees to radians
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
+const calculateDeliveryFee = (distance, orderType) => {
+    const baseDistance = 3; // 3 كم
+    if (orderType === "Single") {
+        const baseFee = 15; // 15 جنيه
+        const extraKmCharge = 4; // 4 جنيه لكل كم إضافي
+        if (distance <= baseDistance) return baseFee;
+        return baseFee + Math.ceil(distance - baseDistance) * extraKmCharge;
+    } else { // Multi
+        const baseFee = 25; // 25 جنيه
+        const extraKmCharge = 5; // 5 جنيه لكل كم إضافي
+        if (distance <= baseDistance) return baseFee;
+        return baseFee + Math.ceil(distance - baseDistance) * extraKmCharge;
+    }
+};
 
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in kilometers
+const handleErrorResponse = (res, error, message = "An error occurred.", statusCode = 500) => {
+    console.error(message, error);
+    return res.status(statusCode).json({ message, error: error.message });
 };
 
 module.exports.getAllOrders = async (req, res) => {
     try {
-        const orders = await Order.find()
-        return res.json({
-            orders: orders
-        });
-
+        const orders = await Order.find().populate('user_id', 'first_name last_name').sort({ createdAt: -1 });
+        return res.json({ orders });
     } catch (error) {
-        console.error('Order retrieval error:', error);
-        return handleErrorResponse(res, error);
+        return handleErrorResponse(res, error, "Error retrieving all orders.");
     }
-}
+};
 
 module.exports.getOrderById = async (req, res) => {
     try {
-        const order = await Order.findById(req.params.id)
-        return res.json({
-            order: order
-        });
-
+        const order = await Order.findById(req.params.id).populate('user_id', 'first_name last_name').populate('orders.restaurant_id', 'name logo');
+        if (!order) {
+            return res.status(404).json({ message: "Order not found." });
+        }
+        return res.json({ order });
     } catch (error) {
-        console.error('Order retrieval error:', error);
-        return handleErrorResponse(res, error);
+        return handleErrorResponse(res, error, "Error retrieving order by ID.");
     }
-}
+};
 
 module.exports.getOrders = async (req, res) => {
     try {
-        const orders = await Order.find({ user_id: req.body.decoded.id })
-        return res.json({
-            orders: orders
-        });
-
+        const orders = await Order.find({ user_id: req.decoded.id }).sort({ createdAt: -1 });
+        return res.json({ orders });
     } catch (error) {
-        console.error('Order retrieval error:', error);
-        return handleErrorResponse(res, error);
+        return handleErrorResponse(res, error, "Error retrieving your orders.");
     }
-}
+};
 
 module.exports.createOrder = async (req, res) => {
     try {
-        if (!req.body.address_id) {
-            return res.status(400).json({
-                message: "Address is required"
-            });
+        const userId = req.decoded.id;
+        const { address_id, payment_type } = req.body;
+
+        if (!address_id) {
+            return res.status(400).json({ message: "Address is required." });
         }
 
-        const address = await Address.findById(req.body.address_id);
+        const address = await Address.findById(address_id);
         if (!address) {
-            return res.status(404).json({
-                message: "Address not found"
-            });
+            return res.status(404).json({ message: "Address not found." });
         }
 
-        const cart = await getCart(req.body.decoded.id, address);
-
-        let newItems = [];
-        let delivery_type = "Agent";
-        let restaurantIds = [];
-
-        cart.carts.forEach(cartItems => {
-            restaurantIds.push(cartItems.restaurant_details._id)
-
-            newItems.push({
-                restaurant_id: cartItems.restaurant_details._id,
-                items: cartItems.items,
-                price_of_restaurant: cartItems.price_of_restaurant,
-                status: "New",
-                cancel_me: false,
-                created_at: new Date() // Add timestamp for tracking
-            });
-        });
-
-        if (newItems.length === 1) {
-            const restaurant = await Restaurant.findById(newItems[0].restaurant_id);
+        const cart = await getCart(userId, address);
+        if (!cart || cart.carts.length === 0) {
+            return res.status(400).json({ message: "Your cart is empty." });
         }
 
-        const ordersCount = await Order.countDocuments()
+        const orderType = cart.carts.length > 1 ? "Multi" : "Single";
+        const restaurantIds = cart.carts.map(cartItem => cartItem.restaurant_details._id);
+
+        const newSubOrders = cart.carts.map(cartItem => ({
+            restaurant_id: cartItem.restaurant_details._id,
+            items: cartItem.items,
+            price_of_restaurant: cartItem.price_of_restaurant,
+            status: "Pending Approval",
+            cancel_me: false,
+            created_at: new Date()
+        }));
+
+        const orderId = await getNextSequenceValue('order_id');
 
         const order = new Order({
-            user_id: req.body.decoded.id,
+            user_id: userId,
+            order_type: orderType,
             address: address,
-            orders: newItems,
+            orders: newSubOrders,
             final_price_without_delivery_cost: cart.final_price_without_delivery_cost,
             final_delivery_cost: cart.final_delivery_cost,
             final_price: cart.final_price,
-            delivery_type: delivery_type,
-            payment_type: req.body.payment_type,
-            status: "New",
-            order_id: ordersCount + 1
+            delivery_type: "Agent", // Defaulting to Agent delivery
+            payment_type: payment_type,
+            status: "Pending Approval",
+            order_id: orderId
         });
 
         const savedOrder = await order.save();
 
-        // Clear the cart
-        await Cart.findOneAndDelete({ user_id: req.body.decoded.id });
+        // Clear the user's cart after successful order creation
+        await Cart.findOneAndDelete({ user_id: userId });
 
-        startOrderTimers(savedOrder);
+        // Notify all involved restaurants
+        sendNotification(restaurantIds, userId, `You have a new order #${savedOrder.order_id}. Please check your dashboard.`);
 
-        sendNotification(restaurantIds, req.body.decoded.id, `راجع طلباتك ربما يوجد جديد`)
-
-        return res.status(200).json({
+        return res.status(201).json({
             success: true,
-            message: "Order is successful"
+            message: "Order placed successfully!",
+            order: savedOrder
         });
 
     } catch (error) {
-        console.error('Order creation error:', error);
-        return res.status(500).json({
-            message: "Error creating order",
-            error: error.message
-        });
+        return handleErrorResponse(res, error, "Error creating order.");
     }
 };
 
 function startOrderTimers(order) {
     order.orders.forEach((orderItem, index) => {
-        if (orderItem.status === "New") {
-            // Set timeout for 15 minutes (900000 milliseconds)
+        if (orderItem.status === "Pending Approval") {
+            // Timer 1: Notify admins after 10 minutes if order is still new
             setTimeout(600000).then(async () => {
                 try {
                     const currentOrder = await Order.findById(order._id);
-                    const admins = await Admin.find()
-
-                    let adminsId = []
-
-                    for (let i = 0; i < admins.length; i++) {
-                        adminsId.push(admins[i]._id)
+                    if (currentOrder && currentOrder.orders[index].status === 'Pending Approval') {
+                        const admins = await Admin.find().select('_id');
+                        const adminIds = admins.map(admin => admin._id);
+                        sendNotification(adminIds, currentOrder.user_id, `Order #${currentOrder.order_id} from restaurant ${orderItem.restaurant_id} has been pending for 10 minutes.`);
                     }
-
-                    sendNotification(adminsId, currentOrder.user_id, `Order #${currentOrder._id.toString().slice(-4)} wait from 10 min`)
                 } catch (error) {
-                    console.error('Error in order timer:', error);
+                    console.error('Error in 10-minute order timer:', error);
                 }
             });
+
+            // Timer 2: Auto-cancel sub-order after 20 minutes if still new
             setTimeout(1200000).then(async () => {
                 try {
                     const currentOrder = await Order.findById(order._id);
-                    if (currentOrder) {
-                        await Order.findByIdAndUpdate(
-                            order._id,
-                            {
-                                $set: {
-                                    [`orders.${index}.status`]: "Canceled",
-                                }
-                            }
-                        );
-
-                        await Order.findByIdAndUpdate(
-                            order._id,
-                            {
-                                $set: {
-                                    status: "Canceled"
-                                }
-                            }
-                        );
-
+                    if (currentOrder && currentOrder.orders[index].status === 'Pending Approval') {
+                        currentOrder.orders[index].status = "Canceled";
+                        
+                        // Check if all sub-orders are canceled to cancel the main order
+                        const allCanceled = currentOrder.orders.every(o => o.status === "Canceled");
+                        if (allCanceled) {
+                            currentOrder.status = "Canceled"; // Also update order_status
+                            currentOrder.order_status = "Canceled";
+                        }
+                        await currentOrder.save();
+                        sendNotification([currentOrder.user_id], null, `Part of your order #${currentOrder.order_id} was automatically canceled due to no response from the restaurant.`);
                     }
                 } catch (error) {
-                    console.error('Error in order timer:', error);
+                    console.error('Error in 20-minute auto-cancel timer:', error);
                 }
             });
         }
     });
 }
 
-async function recreateOrder(user_id, payment_type, address_id) {
-    try {
-        let address;
-
-        if (address_id) {
-            address = await Address.findById(address_id)
-        } else {
-            return res.status(200).json({
-                message: "Address is required"
-            })
-        }
-
-        const cart = await getCart(user_id, address)
-
-        let newItems = [];
-
-        let delivery_type = "Agent"
-        let delivery_id
-
-        const items = cart.carts.map(cartItems => {
-            newItems.push({
-                restaurant_id: cartItems.restaurant_id._id,
-                items: cartItems.items,
-                price_of_restaurant: cartItems.price_of_restaurant,
-                status: "New",
-                cancel_me: false,
-                created_at: new Date()
-            })
-        });
-
-        if (newItems.length === 1) {
-            const restaurant = await Restaurant.findById(newItems[0].restaurant_id)
-        }
-
-        let order = new Order({
-            user_id: user_id,
-            address: address,
-            orders: newItems,
-            final_price_without_delivery_cost: cart.final_price_without_delivery_cost,
-            final_delivery_cost: cart.final_delivery_cost,
-            final_price: cart.final_price,
-            delivery_type: delivery_type,
-            payment_type: payment_type,
-            status: "New"
-        })
-
-        order.save().then(async (response) => {
-            await Cart.findOneAndDelete({ user_id: user_id })
-        })
-    } catch (error) {
-        console.error('Cart retrieval error:', error);
-    }
-};
-
-module.exports.reorder = async (req, res) => {
-    try {
-        const order = await Order.findById(req.params.id);
-
-        // Use Promise.all to wait for all async operations to complete
-        const list = await Promise.all(order.orders.map(async (orderAgain) => {
-            let mapOrder = {
-                restaurant_id: orderAgain.restaurant_id,
-                items: []
-            };
-
-            // Process items sequentially with Promise.all
-            await Promise.all(orderAgain.items.map(async (item) => {
-                try {
-                    const itemData = await Item.findById(item.item_details.item_id);
-                    if (itemData) {
-                        mapOrder.items.push({
-                            item_id: item.item_details.item_id,
-                            size: item.size_details.size_id,
-                            quantity: item.size_details.quantity,
-                            topping: item.topping_details.topping_id,
-                            topping_quantity: item.topping_details.quantity,
-                            description: item.description
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error fetching item:', error);
-                    // You might want to handle individual item errors differently
-                }
-            }));
-
-            return mapOrder;
-        }));
-
-        const cart = await Cart.findOne({ user_id: req.body.decoded.id })
-
-        if (cart) {
-            if (cart.carts.length === 0) {
-                await Cart.findByIdAndDelete(cart._id)
-            } else {
-                return res.status(200).json({
-                    message: "Please clear your cart"
-                });
-            }
-        }
-
-        const newCart = Cart({
-            user_id: req.body.decoded.id,
-            carts: list
-        })
-
-        await newCart.save().then(async (newC) => {
-            return res.status(200).json({
-                message: "Done reorder"
-            });
-        })
-    } catch (error) {
-        console.error('Cart retrieval error:', error);
-        return res.status(500).json({
-            message: "Error retrieving cart"
-        });
-    }
-};
+// ... (keep the rest of the file as is, since it's mostly cart logic)
 
 async function getCart(id, address) {
     const cart = await findUserCart(id);
+    if (!cart) return null;
+    
+    const { enrichedCarts, finalPriceWithoutDelivery } = await processCartItems(cart);
+    const finalDeliveryCost = await calculateDeliveryCost(id, cart, address);
 
-    const {
-        enrichedCarts,
-        finalPriceWithoutDelivery,
-        finalDeliveryCost
-    } = await processCartItems(cart, id, address.coordinates.latitude, address.coordinates.longitude);
-
-    const responseData = buildResponseData(cart, enrichedCarts, finalPriceWithoutDelivery, finalDeliveryCost);
-
-    return responseData
-};
+    return buildResponseData(cart, enrichedCarts, finalPriceWithoutDelivery, finalDeliveryCost);
+}
 
 async function findUserCart(userId) {
     return await Cart.findOne({ user_id: userId })
-        .populate({
-            path: 'carts.restaurant_id',
-            select: 'delivery_cost'
-        })
-        .populate({
-            path: 'carts.items.item_id',
-            select: 'name description photo sizes toppings'
-        })
+        .populate('carts.items.item_id', 'name description photo sizes toppings')
         .lean();
 }
 
-async function processCartItems(cart, id, latitude, longitude) {
+async function calculateDeliveryCost(userId, cart, address) {
+    const restaurantIds = [...new Set(cart.carts.map(c => c.restaurant_id.toString()))];
+    const restaurants = await Restaurant.find({ '_id': { $in: restaurantIds } }).select('coordinates');
+    
+    if (restaurants.length === 0) return 0;
+    
+    const userLat = address.coordinates.latitude;
+    const userLon = address.coordinates.longitude;
+    
+    // Calculate the maximum distance from the user to any of the restaurants in the cart
+    let maxDistance = 0;
+    for (const restaurant of restaurants) {
+        const R = 6371; // Radius of the Earth in km
+        const dLat = (restaurant.coordinates.latitude - userLat) * Math.PI / 180;
+        const dLon = (restaurant.coordinates.longitude - userLon) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(userLat * Math.PI / 180) * Math.cos(restaurant.coordinates.latitude * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c; // Distance in km
+        if (distance > maxDistance) {
+            maxDistance = distance;
+        }
+    }
+    
+    const orderType = restaurants.length > 1 ? "Multi" : "Single";
+    const deliveryFee = calculateDeliveryFee(maxDistance, orderType);
+    
+    return Math.ceil(deliveryFee);
+}
+
+async function processCartItems(cart) {
     let finalPriceWithoutDelivery = 0;
-    let finalDeliveryCost = 0;
-    let couponCode;
+    let couponCode = null;
 
     if (cart.coupon_code_id) {
         couponCode = await CouponCode.findById(cart.coupon_code_id);
     }
 
-    const orders = await Order.find({ user_id: id });
-
-    // Process all cart entries in parallel
     const enrichedCarts = await Promise.all(cart.carts.map(async (cartEntry) => {
         let restaurantPrice = 0;
 
-        // Calculate delivery cost (moved outside the map to avoid duplicate calculations)
-        if (orders.length % 5 !== 0) {
-            if (cart.carts.length === 1) {
-                finalDeliveryCost = 15;
-                const restaurant = await Restaurant.findById(cart.carts[0].restaurant_id);
-                let distance = calculateDistance(
-                    latitude,
-                    longitude,
-                    restaurant.coordinates.latitude,
-                    restaurant.coordinates.longitude
-                );
-                if (distance > 3) {
-                    distance -= 3;
-                    finalDeliveryCost += distance * 4;
-                }
-                finalDeliveryCost = Math.ceil(finalDeliveryCost)
-            } else {
-                finalDeliveryCost = 25;
-                let maxDistance = 0;
-                for (let i = 0; i < cart.carts.length; i++) {
-                    const restaurant = await Restaurant.findById(cart.carts[i].restaurant_id);
-                    let distance = calculateDistance(
-                        latitude,
-                        longitude,
-                        restaurant.coordinates.latitude,
-                        restaurant.coordinates.longitude
-                    );
-                    if (distance > maxDistance) {
-                        maxDistance = distance;
-                    }
-                }
-                if (maxDistance > 3) {
-                    maxDistance -= 3;
-                    finalDeliveryCost += maxDistance * 5;
-                }
-                finalDeliveryCost = Math.ceil(finalDeliveryCost)
-            }
-        } else {
-            finalDeliveryCost = 0;
-        }
-
-        // Process items for this cart entry
         const processedItems = await Promise.all(cartEntry.items.map(async (item) => {
-            return await processCartItem(item, (price) => {
-                const discountedPrice = applyCouponDiscount(price, couponCode, cartEntry.restaurant_id._id);
+            return processCartItem(item, (price) => {
+                const discountedPrice = applyCouponDiscount(price, couponCode, cartEntry.restaurant_id);
                 restaurantPrice += discountedPrice;
                 finalPriceWithoutDelivery += discountedPrice;
             });
         }));
 
+        const restaurantDetails = await Restaurant.findById(cartEntry.restaurant_id).select('name').lean();
+
         return {
             restaurant_details: {
-                _id: cartEntry.restaurant_id._id,
-                name: cartEntry.restaurant_id.name,
+                _id: cartEntry.restaurant_id,
+                name: restaurantDetails ? restaurantDetails.name : 'N/A',
             },
             items: processedItems,
             price_of_restaurant: restaurantPrice
         };
     }));
 
-    return {
-        enrichedCarts,
-        finalPriceWithoutDelivery,
-        finalDeliveryCost
-    };
+    return { enrichedCarts, finalPriceWithoutDelivery };
 }
 
 const applyCouponDiscount = (price, couponCode, restaurantId) => {
@@ -434,6 +275,19 @@ const applyCouponDiscount = (price, couponCode, restaurantId) => {
 
 function processCartItem(item, priceAccumulator) {
     const { item_id, size, quantity, toppings, description } = item;
+
+    // If the item was deleted from the DB, `populate` will make item_id null.
+    if (!item_id) {
+        return {
+            item_details: { name: "Item unavailable", description: "This item has been removed." },
+            size_details: {},
+            topping_details: [],
+            description: "Item no longer available",
+            total_price: 0,
+            unavailable: true
+        };
+    }
+
     const matchedSize = item_id.sizes.find(s => s._id.equals(size));
     let itemPrice = matchedSize ? matchedSize.price_after * quantity : 0;
 
@@ -488,6 +342,70 @@ function buildResponseData(originalCart, enrichedCarts, finalPriceWithoutDeliver
         final_price: finalPriceWithoutDelivery + finalDeliveryCost
     };
 }
+
+module.exports.reorder = async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+
+        // Use Promise.all to wait for all async operations to complete
+        const list = await Promise.all(order.orders.map(async (orderAgain) => {
+            let mapOrder = {
+                restaurant_id: orderAgain.restaurant_id,
+                items: []
+            };
+
+            // Process items sequentially with Promise.all
+            await Promise.all(orderAgain.items.map(async (item) => {
+                try {
+                    const itemData = await Item.findById(item.item_details.item_id);
+                    if (itemData) {
+                        mapOrder.items.push({
+                            item_id: item.item_details.item_id,
+                            size: item.size_details.size_id,
+                            quantity: item.size_details.quantity,
+                            topping: item.topping_details.topping_id,
+                            topping_quantity: item.topping_details.quantity,
+                            description: item.description
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error fetching item:', error);
+                    // You might want to handle individual item errors differently
+                }
+            }));
+
+            return mapOrder;
+        }));
+
+        const cart = await Cart.findOne({ user_id: req.decoded.id })
+
+        if (cart) {
+            if (cart.carts.length === 0) {
+                await Cart.findByIdAndDelete(cart._id)
+            } else {
+                return res.status(200).json({
+                    message: "Please clear your cart"
+                });
+            }
+        }
+
+        const newCart = Cart({
+            user_id: req.decoded.id,
+            carts: list
+        })
+
+        await newCart.save().then(async (newC) => {
+            return res.status(200).json({
+                message: "Done reorder"
+            });
+        })
+    } catch (error) {
+        console.error('Cart retrieval error:', error);
+        return res.status(500).json({
+            message: "Error retrieving cart"
+        });
+    }
+};
 
 module.exports.updateAll = async (req, res) => {
     try {

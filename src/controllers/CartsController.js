@@ -25,7 +25,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 module.exports.getCart = async (req, res) => {
     try {
-        const { id } = req.body.decoded;
+        const { id } = req.decoded;
 
         const user = await User.findById(id)
 
@@ -33,6 +33,12 @@ module.exports.getCart = async (req, res) => {
 
         if (user.address_id) {
             address = await Address.findById(user.address_id)
+        }
+
+        // Handle case where user has no default address
+        if (!address) {
+            const cartForInfo = await findUserCart(id);
+            return res.status(400).json({ success: false, message: 'No default address set. Please select an address.', cart: cartForInfo });
         }
 
         // Get cart with populated items
@@ -235,130 +241,117 @@ function handleErrorResponse(res, error) {
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
 }
-
 module.exports.addCart = async (req, res) => {
-    try {
-        const cart = await Cart.findOne({ user_id: req.body.decoded.id })
-        const restaurant = await Restaurant.findById(req.body.restaurant_id)
-
-        if (!restaurant) {
-            return res.status(200).json({
-                message: `Restaurant is not found`,
-            });
-        }
-
-        const body = req.body
-
-        console.log(body.toppings)
-
-        if (!cart) {
-            let addCart = new Cart({
-                user_id: body.decoded.id,
-                carts: [{
-                    restaurant_id: body.restaurant_id,
-                    items: [!body.toppings || body.toppings.length === 0 ? {
-                        item_id: body.item_id,
-                        size: body.size,
-                        quantity: 1,
-                        description: body.description
-                    } : {
-                        item_id: body.item_id,
-                        size: body.size,
-                        quantity: 1,
-                        toppings: body.toppings.map(topping => ({
-                            topping: topping.topping,
-                            topping_quantity: 1
-                        })),
-                        description: body.description
-                    }]
-                }]
-            })
-
-            addCart.save()
-                .then(response => {
-                    return res.status(200).json({
-                        message: "Added to cart",
-                    })
-                })
-        } else {
-            const itemExists = cart.carts.some(cartMap =>
-                cartMap.restaurant_id.equals(body.restaurant_id) &&
-                cartMap.items.some(itemsMap =>
-                    itemsMap.item_id.equals(body.item_id) &&
-                    itemsMap.size.equals(body.size) &&
-                    areToppingsEqual(itemsMap.toppings, body.toppings)
-                )
-            );
-            if (itemExists) {
-                return res.status(200).json({
-                    message: "Already in cart",
-                });
-            } else {
-                const hasRestaurant = cart.carts.some(cart =>
-                    cart.restaurant_id.equals(body.restaurant_id)
-                );
-                if (!hasRestaurant) {
-                    if (cart.carts.length === 3) {
-                        return res.status(200).json({
-                            message: "Only 3 restaurant in cart",
-                        });
-                    }
-                    cart.carts.push({
-                        restaurant_id: body.restaurant_id,
-                        items: [!body.toppings || body.toppings.length === 0 ? {
-                            item_id: body.item_id,
-                            size: body.size,
-                            quantity: 1,
-                            description: body.description
-                        } : {
-                            item_id: body.item_id,
-                            size: body.size,
-                            quantity: 1,
-                            toppings: body.toppings.map(topping => ({
-                                topping: topping.topping,
-                                topping_quantity: 1
-                            })),
-                            description: body.description
-                        }]
-                    });
-                    await cart.save();
-
-                    return res.status(200).json({
-                        message: "Added to cart",
-                    });
-                } else {
-                    const restaurantCart = cart.carts.find(c =>
-                        c.restaurant_id.equals(body.restaurant_id)
-                    );
-                    restaurantCart.items.push(!body.toppings || body.toppings.length === 0 ? {
-                        item_id: body.item_id,
-                        size: body.size,
-                        quantity: 1,
-                        description: body.description
-                    } : {
-                        item_id: body.item_id,
-                        size: body.size,
-                        quantity: 1,
-                        toppings: body.toppings.map(topping => ({
-                            topping: topping.topping,
-                            topping_quantity: 1
-                        })),
-                        description: body.description
-                    });
-                    await cart.save()
-                    return res.status(200).json({
-                        message: "Added to cart",
-                    });
-                }
-            }
-        }
-    } catch (error) {
-        console.log(error)
-        return res.json({
-            message: "Error"
-        })
+  try {
+    if (!req.decoded || !req.decoded.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized: Invalid or missing token" });
     }
-}
+
+    const userId = req.decoded.id;
+    const body = req.body;
+
+    const restaurant = await Restaurant.findById(body.restaurant_id);
+    if (!restaurant) {
+      return res.status(404).json({ success: false, message: "Restaurant not found" });
+    }
+
+    let cart = await Cart.findOne({ user_id: userId });
+
+    // ✅ أول مرة يضيف
+    if (!cart) {
+      let newCart = new Cart({
+        user_id: userId,
+        carts: [
+          {
+            restaurant_id: body.restaurant_id,
+            items: [
+              {
+                item_id: body.item_id,
+                size: body.size,
+                quantity: 1,
+                toppings: body.toppings?.map(t => ({
+                  topping: t.topping,
+                  topping_quantity: 1
+                })) || [],
+                description: body.description || ""
+              }
+            ]
+          }
+        ]
+      });
+
+      await newCart.save();
+      return res.status(200).json({ success: true, message: "Added to cart" });
+    }
+
+    // ✅ لو فيه كارت بالفعل
+    const itemExists = cart.carts.some(cartMap =>
+      cartMap.restaurant_id.equals(body.restaurant_id) &&
+      cartMap.items.some(itemsMap =>
+        itemsMap.item_id.equals(body.item_id) &&
+        itemsMap.size.equals(body.size) &&
+        areToppingsEqual(itemsMap.toppings, body.toppings)
+      )
+    );
+
+    if (itemExists) {
+      return res.status(200).json({ success: false, message: "Already in cart" });
+    }
+
+    const hasRestaurant = cart.carts.some(c => c.restaurant_id.equals(body.restaurant_id));
+
+    if (!hasRestaurant) {
+      if (cart.carts.length >= 3) {
+        return res.status(400).json({ success: false, message: "Only 3 restaurants allowed in cart" });
+      }
+
+      cart.carts.push({
+        restaurant_id: body.restaurant_id,
+        items: [
+          {
+            item_id: body.item_id,
+            size: body.size,
+            quantity: 1,
+            toppings: body.toppings?.map(t => ({
+              topping: t.topping,
+              topping_quantity: 1
+            })) || [],
+            description: body.description || ""
+          }
+        ]
+      });
+
+      await cart.save();
+      return res.status(200).json({ success: true, message: "Added to cart" });
+    }
+
+    // ✅ نفس المطعم
+    const restaurantCart = cart.carts.find(c => c.restaurant_id.equals(body.restaurant_id));
+    restaurantCart.items.push({
+      item_id: body.item_id,
+      size: body.size,
+      quantity: 1,
+      toppings: body.toppings?.map(t => ({
+        topping: t.topping,
+        topping_quantity: 1
+      })) || [],
+      description: body.description || ""
+    });
+
+    await cart.save();
+    return res.status(200).json({ success: true, message: "Added to cart" });
+
+  } catch (error) {
+    // تحسين رسالة الخطأ
+    if (error.name === 'ValidationError' && error.errors['carts.0.items.0.size']) {
+        return res.status(400).json({ success: false, message: "Invalid format for 'size'. Please provide a valid size ID." });
+    }
+
+    console.error("Cart add error:", error.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 
 function areToppingsEqual(toppings1, toppings2) {
     if (!toppings1 && !toppings2) return true;
@@ -376,7 +369,7 @@ function areToppingsEqual(toppings1, toppings2) {
 
 module.exports.removeCart = async (req, res) => {
     try {
-        const cart = await Cart.findOne({ user_id: req.body.decoded.id })
+        const cart = await Cart.findOne({ user_id: req.decoded.id })
 
         const body = req.body
         const itemExists = cart.carts.some(cartMap =>
@@ -428,7 +421,7 @@ module.exports.removeCart = async (req, res) => {
 
 module.exports.increaseItemQuantity = async (req, res) => {
     try {
-        const { id } = req.body.decoded;
+        const { id } = req.decoded;
         const { restaurant_id, item_id, size, topping } = req.body;
 
         const cart = await Cart.findOne({ user_id: id });
@@ -506,7 +499,7 @@ module.exports.increaseItemQuantity = async (req, res) => {
 
 module.exports.decreaseItemQuantity = async (req, res) => {
     try {
-        const { id } = req.body.decoded;
+        const { id } = req.decoded;
         const { restaurant_id, item_id, size, topping } = req.body;
 
         const cart = await Cart.findOne({ user_id: id });

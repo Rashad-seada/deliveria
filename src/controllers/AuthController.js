@@ -6,7 +6,6 @@ const User = require("../models/Users");
 const Agent = require("../models/Agents");
 const Admin = require("../models/Admin");
 const { registertoken } = require("./global");
-require("dotenv").config();
 
 module.exports.login = async (req, res, next) => {
     try {

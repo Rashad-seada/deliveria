@@ -1,15 +1,15 @@
+
 const router = require("express").Router();
 const { checkToken } = require("../../auth/token_validation");
 const agentsController = require("../../controllers/AgentsController");
 
-router.get("/all", agentsController.getAgents);
-router.get("/id/:id", agentsController.getOrderOfAgent);
-router.post("/create", agentsController.createAgent);
-router.post("/login", agentsController.login);
-router.put("/change_ban/:id", agentsController.changeBanAgent);
-router.get("/get_orders", checkToken, agentsController.getOrdersNotAccept);
-router.get("/my_orders", checkToken, agentsController.myOrder);
-router.put("/accept_order/:id", checkToken, agentsController.acceptOrder);
-router.put("/change_status/:id", checkToken, agentsController.changeStatusOfOrder);
+// PUBLIC ROUTES
+router.post("/create", agentsController.createAgent); // For creating a new agent account
+router.post("/login", agentsController.login);       // For agent login
+
+// ADMIN & AUTHENTICATED ROUTES (assuming checkToken verifies admin or the agent themselves)
+router.get("/all", checkToken, agentsController.getAgents); // Get a list of all agents
+router.get("/:id/orders", checkToken, agentsController.getOrdersByAgentId); // Get all orders handled by a specific agent
+router.put("/toggle_ban/:id", checkToken, agentsController.toggleAgentBan); // Ban or unban an agent
 
 module.exports = router;

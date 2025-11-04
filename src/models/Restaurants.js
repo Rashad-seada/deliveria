@@ -74,7 +74,7 @@ const restaurantSchema = new Schema(
             type: Number,
             required: true,
         },
-        loacation_map: {
+        location_map: {
             type: String,
             required: true,
         },
@@ -115,9 +115,10 @@ const restaurantSchema = new Schema(
 );
 
 restaurantSchema.statics.isThisUserNameUsed = async function (phone) {
-    if (!phone) throw new Error("Invalid phone");
+    const trimmedPhone = phone ? phone.trim() : '';
+    if (!trimmedPhone) throw new Error("Invalid phone: Phone number cannot be empty.");
     try {
-        const restaurant = await this.findOne({ phone: phone });
+        const restaurant = await this.findOne({ phone: trimmedPhone });
         if (!restaurant) return false;
 
         return true;

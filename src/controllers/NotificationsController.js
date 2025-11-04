@@ -21,7 +21,7 @@ module.exports.createNotification = async (req, res, next) => {
 
 module.exports.getNotification = async (req, res, next) => {
     try {
-        const userId = req.body.decoded.id;
+        const userId = req.decoded.id; // التصحيح: استخدام req.decoded مباشرة
         const notifications = await Notification.find({ user_id: userId }).sort({ _id: -1 });
 
         // Use Promise.all for parallel processing of async operations

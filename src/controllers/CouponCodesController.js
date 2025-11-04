@@ -1,129 +1,115 @@
 const Cart = require("../models/Carts");
 const CouponCode = require("../models/CouponCodes");
-const Restaurant = require("../models/Restaurants");
 
 module.exports.createCouponCode = async (req, res) => {
     try {
-        const isNewCode = await CouponCode.isThisCodeIsUsed(req.body.code)
-        if (isNewCode) {
-            return res.json({
-                message: 'This code is already in use'
-            })
+        const { code, discount_type, value, expired_date } = req.body;
+
+        if (!code || !discount_type || !value || !expired_date) {
+            return res.status(400).json({ message: "Code, discount_type, value, and expired_date are required." });
         }
 
-        if (req.body.restaurant !== "Full") {
-            const restaurant = await Restaurant.findById(req.body.restaurant.trim())
-
-            if (!restaurant) {
-                return res.status(200).json({
-                    message: `Restaurant is not found`,
-                });
-            }
+        const existingCode = await CouponCode.findOne({ code: code.toUpperCase() });
+        if (existingCode) {
+            return res.status(409).json({ message: 'This coupon code already exists.' });
         }
 
         let couponCode = new CouponCode({
-            restaurant: req.body.restaurant.trim(),
-            code: req.body.code.trim(),
-            discount: req.body.discount,
-            expired_date: req.body.expired_date.trim(),
-            enable: true,
-            number_enable: req.body.number_enable,
-        })
+            code: code.toUpperCase(),
+            discount_type,
+            value,
+            expired_date: new Date(expired_date),
+        });
 
-        couponCode.save()
-            .then(response => {
-                return res.status(200).json({
-                    message: "Code is created"
-                })
-            })
+        await couponCode.save();
+
+        return res.status(201).json({
+            message: "Coupon code created successfully.",
+            coupon: couponCode
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.json({
-            message: "Error"
-        })
+        console.error("Error creating coupon:", error);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ message: "Validation Error", errors: error.errors });
+        }
+        return res.status(500).json({ message: "Server error." });
     }
 }
 
 module.exports.checkCouponCode = async (req, res) => {
     try {
-        const couponCode = await CouponCode.findOne({ code: req.params.code, enable: true })
+        const userId = req.decoded.id;
+        const code = req.params.code.toUpperCase();
+
+        const couponCode = await CouponCode.findOne({ code: code });
 
         if (!couponCode) {
-            return res.status(200).json({
-                message: `Coupon "${req.params.code}" you entered doesn't exist`
-            })
+            return res.status(404).json({ message: `Coupon "${code}" not found.` });
+        }
+
+        if (!couponCode.is_active) {
+            return res.status(400).json({ message: `Coupon "${code}" is not active.` });
         }
 
         const currentDate = new Date();
-        const expiredDate = new Date(couponCode.expired_date);
-
-        if (currentDate > expiredDate) {
-            return res.status(200).json({
-                success: false,
-                message: `Coupon code "${req.params.code}" has expired`
-            });
+        if (currentDate > couponCode.expired_date) {
+            return res.status(400).json({ message: `Coupon "${code}" has expired.` });
         }
 
-        let restaurant;
-
-        if (couponCode.restaurant !== "Full") {
-            restaurant = await Restaurant.findById(couponCode.restaurant)
-
-            if (!restaurant) {
-                return res.status(200).json({
-                    message: `Restaurant is not found`,
-                });
-            }
+        if (couponCode.users_used.includes(userId)) {
+            return res.status(400).json({ message: `You have already used this coupon.` });
         }
 
-        const carts = await Cart.find({ user_id: req.body.decoded.id, coupon_code_id: couponCode._id })
-
-        if (carts.length === couponCode.number_enable) {
-            return res.status(200).json({
-                message: `You used this code full`
-            })
+        // Apply coupon to user's cart
+        const cart = await Cart.findOne({ user_id: userId });
+        if (!cart) {
+            return res.status(404).json({ message: "You don't have a cart to apply the coupon to." });
         }
 
-        await Cart.findOneAndUpdate({ user_id: req.body.decoded.id }, { $set: { coupon_code_id: couponCode._id } })
+        cart.coupon_code_id = couponCode._id;
+        await cart.save();
+
         return res.status(200).json({
-            message: `Coupon "${req.params.code}" exist and you got ${couponCode.discount}% ${couponCode.restaurant === "Full" ? "off" : `for ${restaurant.name}`}`
-        })
+            message: `Coupon "${code}" applied successfully! You get ${couponCode.value}% off the ${couponCode.discount_type}.`,
+            coupon: couponCode
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.json({
-            message: "Error"
-        })
+        console.error("Error checking coupon:", error);
+        return res.status(500).json({ message: "Server error." });
     }
 }
 
 module.exports.getCouponCode = async (req, res) => {
     try {
-        const couponCodes = await CouponCode.find()
+        const couponCodes = await CouponCode.find();
 
         return res.status(200).json({
             coupon_codes: couponCodes
-        })
+        });
     } catch (error) {
-        console.log(error)
-        return res.json({
-            message: "Error"
-        })
+        console.error("Error fetching coupons:", error);
+        return res.status(500).json({ message: "Server error." });
     }
 }
 
 module.exports.changeEnable = async (req, res, next) => {
     try {
         const couponCode = await CouponCode.findById(req.params.id);
-        couponCode.enable = !couponCode.enable;
+        if (!couponCode) {
+            return res.status(404).json({ message: "Coupon not found." });
+        }
+
+        couponCode.is_active = !couponCode.is_active;
         await couponCode.save();
 
         return res.status(200).json({
-            message: `This coupon code is ${couponCode.enable ? "enabled" : "disabled"} delivery`,
-            enable: couponCode.enable,
+            message: `This coupon code is now ${couponCode.is_active ? "enabled" : "disabled"}.`,
+            is_active: couponCode.is_active,
         });
     } catch (error) {
-        return res.json({
-            message: "Error"
-        })
+        console.error("Error toggling coupon status:", error);
+        return res.status(500).json({ message: "Server error." });
     }
 }

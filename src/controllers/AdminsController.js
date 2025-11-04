@@ -6,7 +6,6 @@ const Admin = require("../models/Admin");
 const Agent = require("../models/Agents");
 const User = require("../models/Users");
 const Order = require("../models/Orders");
-require("dotenv").config();
 
 module.exports.createAdmin = async (req, res) => {
     const body = req.body;

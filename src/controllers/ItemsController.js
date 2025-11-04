@@ -5,50 +5,58 @@ const { not_select, checkIsOpen } = require("./global");
 
 module.exports.createItem = async (req, res) => {
     try {
-        if (req.body.decoded.user_type !== "Restaurant") {
-            return res.json({
-                message: 'This account is not restaurant'
-            })
+        // The decoded token is attached to req.decoded, not req.body.decoded
+        if (req.decoded.user_type !== "Restaurant") {
+            return res.status(403).json({
+                message: 'Forbidden: This action is only for restaurants.'
+            });
         }
-        const body = req.body;
 
-        let sizes = []
+        const { name, description, sizes: sizesJSON, have_option, item_category, toppings: toppingsJSON } = req.body;
 
-        const sizesFront = JSON.parse(body.sizes)
-
-        for (let i = 0; i < sizesFront.length; i++) {
-            sizes.push({
-                size: sizesFront[i].size,
-                price_before: sizesFront[i].price_before,
-                price_after: sizesFront[i].price_after,
-                offer: (sizesFront[i].price_after / sizesFront[i].price_before) * 100
-            })
+        if (!req.file) {
+            return res.status(400).json({ message: "Item photo is required." });
         }
+
+        if (!name || !description || !sizesJSON || !item_category) {
+            return res.status(400).json({ message: "Missing required fields (name, description, sizes, item_category)." });
+        }
+
+        const sizes = JSON.parse(sizesJSON).map(s => ({
+            size: s.size,
+            price_before: s.price_before,
+            price_after: s.price_after,
+            offer: (s.price_after / s.price_before) * 100
+        }));
 
         let item = new Item({
-            restaurant_id: req.body.decoded.id,
+            restaurant_id: req.decoded.id, // Correctly access decoded token from req
             photo: req.file.path,
-            name: body.name.trim(),
-            description: body.description.trim(),
+            name: name.trim(),
+            description: description.trim(),
             sizes: sizes,
             enable: true,
-            have_option: body.have_option,
-            item_category: body.item_category,
-            toppings: JSON.parse(body.toppings),
-        })
+            have_option: have_option,
+            item_category: item_category,
+            toppings: JSON.parse(toppingsJSON || '[]'),
+        });
 
+        const savedItem = await item.save();
 
-        item.save()
-            .then(response => {
-                return res.status(200).json({
-                    message: "Item is created"
-                })
-            })
+        return res.status(201).json({
+            message: "Item created successfully",
+            item: savedItem
+        });
+
     } catch (error) {
-        console.log(error)
-        return res.json({
-            message: "Error"
-        })
+        console.error("Error creating item:", error);
+        if (error instanceof SyntaxError) {
+            return res.status(400).json({ message: "Invalid JSON format for sizes or toppings." });
+        }
+        return res.status(500).json({
+            message: "Server error while creating item",
+            error: error.message
+        });
     }
 }
 
