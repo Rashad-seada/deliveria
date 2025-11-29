@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+Dockerfile
+Dockerfile.nginx
+docker-compose.yml
+.git
+.gitignore
+.env
+.idea
+tests
+deliveria_upload
+uploads
