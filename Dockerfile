@@ -11,11 +11,14 @@ WORKDIR /deliveria
 COPY package.json package-lock.json ./
 
 # Install dependencies (clean install for production)
-# Using --omit=dev to skip devDependencies and --force if necessary (though ci is better, sticking to robust install if lockfile has issues, but ci is best practice. Let's use ci)
 RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy the rest of the application code
 COPY . .
+
+# Create upload directories and set ownership to node user
+RUN mkdir -p deliveria_upload uploads && \
+    chown -R node:node /deliveria
 
 # Use a non-root user for security
 USER node
