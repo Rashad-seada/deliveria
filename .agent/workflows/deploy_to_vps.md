@@ -70,9 +70,15 @@ The deployment is automated via GitHub Actions.
 
 If you need to deploy manually:
 
-1.  Copy `docker-compose.prod.yml` to the VPS.
-2.  Create a `.env` file with the necessary variables.
-3.  Run:
+1.  SSH into your VPS and create the deployment directory:
+    ```bash
+    sudo mkdir -p /var/www/html/deliveria
+    sudo chown -R $USER:$USER /var/www/html/deliveria
+    cd /var/www/html/deliveria
+    ```
+2.  Copy `docker-compose.prod.yml` to the VPS at `/var/www/html/deliveria/`.
+3.  Create a `.env` file with the necessary variables.
+4.  Run:
     ```bash
     docker compose -f docker-compose.prod.yml up -d
     ```

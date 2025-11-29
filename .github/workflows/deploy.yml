@@ -48,7 +48,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "docker-compose.prod.yml"
-          target: "/home/${{ secrets.VPS_USERNAME }}/deliveria"
+          target: "/var/www/html/deliveria"
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
@@ -57,7 +57,11 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /home/${{ secrets.VPS_USERNAME }}/deliveria
+            # Create directory if it doesn't exist
+            sudo mkdir -p /var/www/html/deliveria
+            sudo chown -R $USER:$USER /var/www/html/deliveria
+            
+            cd /var/www/html/deliveria
             
             # Create .env file from secrets
             echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}" > .env
