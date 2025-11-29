@@ -17,7 +17,7 @@ services:
     depends_on:
       - mongodb
     networks:
-      - app-network
+      - npm_app_network
     volumes:
       # Only mount uploads, code is in the image
       - uploads_data:/deliveria/uploads
@@ -30,11 +30,11 @@ services:
       app:
         condition: service_started
     networks:
-      - app-network
+      - npm_app_network
     volumes:
       # Only mount uploads, config is in the image
       - uploads_data:/var/www/uploads:ro
-    ports:
+    expose:
       - "80"
 
   mongodb:
@@ -47,8 +47,8 @@ services:
     volumes:
       - mongodb_data:/data/db
     networks:
-      - app-network
-    ports:
+      - npm_app_network
+    expose:
       - "27017"
 
 volumes:
@@ -58,5 +58,5 @@ volumes:
     name: ${DOCKER_NAME}_uploads_data
 
 networks:
-  app-network:
-    name: ${DOCKER_NAME}_network
+  npm_app_network:
+    external: true
