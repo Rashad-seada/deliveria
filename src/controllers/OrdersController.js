@@ -10,6 +10,7 @@ const Counter = require("../models/Counter");
 const { setTimeout } = require('timers/promises');
 const Admin = require("../models/Admin");
 const { sendNotification } = require("./global");
+const { calculateDistance, calculateDeliveryFee, calculateMaxDistanceToRestaurants } = require("../utils/deliveryHelpers");
 
 async function getNextSequenceValue(sequenceName) {
     const sequenceDocument = await Counter.findByIdAndUpdate(
@@ -20,20 +21,7 @@ async function getNextSequenceValue(sequenceName) {
     return sequenceDocument.seq;
 }
 
-const calculateDeliveryFee = (distance, orderType) => {
-    const baseDistance = 3; // 3 كم
-    if (orderType === "Single") {
-        const baseFee = 15; // 15 جنيه
-        const extraKmCharge = 4; // 4 جنيه لكل كم إضافي
-        if (distance <= baseDistance) return baseFee;
-        return baseFee + Math.ceil(distance - baseDistance) * extraKmCharge;
-    } else { // Multi
-        const baseFee = 25; // 25 جنيه
-        const extraKmCharge = 5; // 5 جنيه لكل كم إضافي
-        if (distance <= baseDistance) return baseFee;
-        return baseFee + Math.ceil(distance - baseDistance) * extraKmCharge;
-    }
-};
+
 
 const handleErrorResponse = (res, error, message = "An error occurred.", statusCode = 500) => {
     console.error(message, error);
@@ -201,25 +189,11 @@ async function calculateDeliveryCost(userId, cart, address) {
     
     if (restaurants.length === 0) return 0;
     
-    const userLat = address.coordinates.latitude;
-    const userLon = address.coordinates.longitude;
-    
-    // Calculate the maximum distance from the user to any of the restaurants in the cart
-    let maxDistance = 0;
-    for (const restaurant of restaurants) {
-        const R = 6371; // Radius of the Earth in km
-        const dLat = (restaurant.coordinates.latitude - userLat) * Math.PI / 180;
-        const dLon = (restaurant.coordinates.longitude - userLon) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(userLat * Math.PI / 180) * Math.cos(restaurant.coordinates.latitude * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = R * c; // Distance in km
-        if (distance > maxDistance) {
-            maxDistance = distance;
-        }
-    }
+    // استخدام الدالة المشتركة لحساب أقصى مسافة
+    const maxDistance = calculateMaxDistanceToRestaurants(
+        restaurants,
+        address.coordinates
+    );
     
     const orderType = restaurants.length > 1 ? "Multi" : "Single";
     const deliveryFee = calculateDeliveryFee(maxDistance, orderType);

@@ -6,35 +6,12 @@ const Restaurant = require("../models/Restaurants");
 const Admin = require("../models/Admin");
 const { sendNotification } = require("./global");
 const { setTimeout } = require('timers/promises');
+const { calculateDistance, calculateEstimatedTime, calculateDeliveryFee, calculateMaxDistanceToRestaurants } = require("../utils/deliveryHelpers");
 
 // ####################################################################################################################
 // #################################################### Helper Functions ################################################
 // ####################################################################################################################
-
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radius of the Earth in kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-};
-
-const calculateEstimatedTime = (distance) => Math.ceil((distance / 30) * 60); // Assuming average speed of 30 km/h
-const calculateDeliveryFee = (distance, orderType) => {
-    const baseDistance = 3; // 3 كم
-    if (orderType === "Single") {
-        const baseFee = 15; // 15 جنيه
-        const extraKmCharge = 4; // 4 جنيه لكل كم إضافي
-        if (distance <= baseDistance) return baseFee;
-        return baseFee + Math.ceil(distance - baseDistance) * extraKmCharge;
-    } else { // Multi
-        const baseFee = 25; // 25 جنيه
-        const extraKmCharge = 5; // 5 جنيه لكل كم إضافي
-        if (distance <= baseDistance) return baseFee;
-        return baseFee + Math.ceil(distance - baseDistance) * extraKmCharge;
-    }
-};
+// Note: Delivery calculation functions moved to src/utils/deliveryHelpers.js for reusability
 
 function startOrderTimers(order) {
     setTimeout(1500000).then(async () => { // 25 minutes
@@ -139,18 +116,28 @@ module.exports.acceptOrder = async (req, res) => {
             return res.status(404).json({ message: "Agent profile not found." });
         }
 
-        // حساب المسافة والوقت المقدر فور قبول الطلب
-        const distance = calculateDistance(
-            agent.current_location.coordinates[1], // agent latitude
-            agent.current_location.coordinates[0], // agent longitude
-            order.address.coordinates.latitude,
-            order.address.coordinates.longitude
+        // حساب المسافة من المطاعم إلى العميل (وليس من الدليفري إلى العميل)
+        const restaurantIds = order.orders.map(o => o.restaurant_id);
+        const restaurants = await Restaurant.find({ '_id': { $in: restaurantIds } }).select('coordinates');
+        
+        if (restaurants.length === 0) {
+            return res.status(400).json({ message: "No restaurants found for this order." });
+        }
+
+        // حساب أقصى مسافة من المطاعم إلى عنوان العميل
+        const maxDistance = calculateMaxDistanceToRestaurants(
+            restaurants,
+            order.address.coordinates
         );
 
+        // استخدام final_delivery_cost الموجود بالفعل في الطلب
+        // إذا لم يكن موجوداً، احسبه بناءً على المسافة من المطاعم
+        const deliveryFee = order.final_delivery_cost || calculateDeliveryFee(maxDistance, order.order_type);
+
         const deliveryDetails = {
-            distance: distance,
-            estimated_time: calculateEstimatedTime(distance),
-            delivery_fee: calculateDeliveryFee(distance, order.order_type) // استخدام النوع هنا
+            distance: maxDistance,
+            estimated_time: calculateEstimatedTime(maxDistance),
+            delivery_fee: deliveryFee
         };
 
         const updatedOrder = await Order.findByIdAndUpdate(orderId, {
@@ -299,21 +286,20 @@ exports.updateAgentLocation = async (req, res) => {
         const isRealLocation = latitude !== 0 || longitude !== 0;
 
         if (activeOrder && isRealLocation) {
-            // إعادة حساب المسافة بناءً على الموقع الجديد
-            const distance = calculateDistance(
+            // حساب المسافة من موقع الدليفري الحالي إلى عنوان العميل
+            // هذه المسافة للعرض فقط (لإظهار المسافة المتبقية) وليست لحساب التكلفة
+            const currentDistanceToCustomer = calculateDistance(
                 latitude, longitude,
                 activeOrder.address.coordinates.latitude,
                 activeOrder.address.coordinates.longitude
             );
 
-            // تحديث تفاصيل التوصيل في الطلب
-            activeOrder.delivery_details.distance = distance;
-            activeOrder.delivery_details.estimated_time = calculateEstimatedTime(distance);
+            // تحديث المسافة والوقت المقدر بناءً على الموقع الحالي للدليفري
+            // ملاحظة: delivery_fee لا يتم تغييرها لأنها محسوبة من المطعم وليس من موقع الدليفري
+            activeOrder.delivery_details.distance = currentDistanceToCustomer;
+            activeOrder.delivery_details.estimated_time = calculateEstimatedTime(currentDistanceToCustomer);
             
-            // إذا لم تكن هناك تكلفة توصيل محسوبة مسبقاً، قم بحسابها الآن
-            if (!activeOrder.delivery_details.delivery_fee) {
-                activeOrder.delivery_details.delivery_fee = calculateDeliveryFee(distance, activeOrder.order_type);
-            }
+            // delivery_fee يجب أن تبقى ثابتة كما تم حسابها عند قبول الطلب
 
             await activeOrder.save();
         }
