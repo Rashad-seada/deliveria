@@ -61,7 +61,7 @@ module.exports.getAvailableOrders = async (req, res) => {
         const orders = await Order.find({
             delivery_type: "Agent",
             "agent.agent_id": null, // Correctly check if an agent is assigned
-            status: { $in: ["Pending Approval", "Preparing", "Ready for Delivery"] }
+            status: "Ready for Delivery" // Only show orders that are ready for delivery
         }).populate({
             path: 'user_id',
             select: 'first_name last_name'
@@ -126,7 +126,7 @@ module.exports.acceptOrder = async (req, res) => {
             return res.status(400).json({ message: "This order has already been accepted by another agent." });
         }
 
-        if (!["Pending Approval", "Preparing", "Ready for Delivery"].includes(order.status)) {
+        if (order.status !== "Ready for Delivery") {
             return res.status(400).json({ message: "This order is no longer available for acceptance." });
         }
 
