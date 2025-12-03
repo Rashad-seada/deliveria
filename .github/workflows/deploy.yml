@@ -1,0 +1,85 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Build and push App image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/deliveria-app:latest
+
+      - name: Build and push Webserver image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.nginx
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/deliveria-webserver:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Copy files to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "docker-compose.prod.yml"
+          target: "/var/www/html/deliveria"
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            # Create directory if it doesn't exist
+            sudo mkdir -p /var/www/html/deliveria
+            sudo chown -R $USER:$USER /var/www/html/deliveria
+            
+            cd /var/www/html/deliveria
+            
+            # Create .env file from secrets
+            echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}" > .env
+            echo "DOCKER_NAME=deliveria" >> .env
+            echo "MONGO_USERNAME=${{ secrets.MONGO_USERNAME }}" >> .env
+            echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}" >> .env
+            echo "MONGO_DATABASE=${{ secrets.MONGO_DATABASE }}" >> .env
+            echo "JWT_KEY=${{ secrets.JWT_KEY }}" >> .env
+            echo "projectId=${{ secrets.PROJECT_ID }}" >> .env
+            echo "clientEmail=${{ secrets.CLIENT_EMAIL }}" >> .env
+            # Handle multi-line private key
+            echo "privateKey=\"${{ secrets.PRIVATE_KEY }}\"" >> .env
+            
+            # Pull latest images
+            docker compose -f docker-compose.prod.yml pull
+            
+            # Restart services
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            
+            # Cleanup unused images
+            docker image prune -f

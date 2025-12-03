@@ -1,10 +1,7 @@
 version: "3.9"
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: deliveria-app
+    image: ${DOCKER_HUB_USERNAME}/deliveria-app:latest
     container_name: ${DOCKER_NAME}_app
     restart: unless-stopped
     working_dir: /deliveria
@@ -20,27 +17,25 @@ services:
     depends_on:
       - mongodb
     networks:
-      - app-network
+      - npm_app_network
     volumes:
-      - .:/deliveria
-      - /deliveria/node_modules
+      # Only mount uploads, code is in the image
       - uploads_data:/deliveria/uploads
 
   webserver:
-    image: nginx:alpine
+    image: ${DOCKER_HUB_USERNAME}/deliveria-webserver:latest
     container_name: ${DOCKER_NAME}_webserver
     restart: unless-stopped
     depends_on:
       app:
         condition: service_started
     networks:
-      - app-network
+      - npm_app_network
     volumes:
-      - .:/var/www:ro
-      - ./default.conf:/etc/nginx/conf.d/default.conf
+      # Only mount uploads, config is in the image
       - uploads_data:/var/www/uploads:ro
-    ports:
-      - "80:80"
+    expose:
+      - "80"
 
   mongodb:
     image: mongo:6.0
@@ -52,9 +47,9 @@ services:
     volumes:
       - mongodb_data:/data/db
     networks:
-      - app-network
-    ports:
-      - "27017:27017"
+      - npm_app_network
+    expose:
+      - "27017"
 
 volumes:
   mongodb_data:
@@ -63,5 +58,5 @@ volumes:
     name: ${DOCKER_NAME}_uploads_data
 
 networks:
-  app-network:
-    name: ${DOCKER_NAME}_network
+  npm_app_network:
+    external: true
