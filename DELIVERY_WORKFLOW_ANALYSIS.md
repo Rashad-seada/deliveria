@@ -585,4 +585,4 @@ else return 25 + Math.ceil(distance - 3) * 5
 ---
 
 تاريخ التوثيق: 2025-12-03
-المطور: Antigravity AI Assistant
+**المطور:** Antigravity AI Assistant  With ibrahim shorib

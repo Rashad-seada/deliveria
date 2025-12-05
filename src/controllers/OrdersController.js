@@ -113,6 +113,9 @@ module.exports.createOrder = async (req, res) => {
         // Notify all involved restaurants
         sendNotification(restaurantIds, userId, `You have a new order #${savedOrder.order_id}. Please check your dashboard.`);
 
+        // Start the timers for admin notification and auto-cancellation
+        startOrderTimers(savedOrder);
+
         return res.status(201).json({
             success: true,
             message: "Order placed successfully!",

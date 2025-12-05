@@ -7,7 +7,6 @@ const cors = require("cors");
 const path = require('path');
 const { startOrderProcessingJob } = require("./src/jobs/orderJobs");
 require("dotenv").config();
-app.use(express.json());
 
 const connectDB = async () => {
   try {
@@ -19,11 +18,14 @@ const connectDB = async () => {
   }
 };
 
-// Whitelist of allowed origins
-const allowedOrigins = ['http://localhost:3000', 'http://your-frontend-domain.com'];
+// Whitelist of allowed origins from environment variables, split by comma
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS 
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',') 
+  : [];
 
 const corsOptions = {
   origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
     if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
       callback(null, true);
     } else {
@@ -36,7 +38,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "10mb" })); // Increased limit and consolidated
 
 app.use(router);
 app.use('/deliveria_upload', express.static(path.join(__dirname, 'deliveria_upload')));

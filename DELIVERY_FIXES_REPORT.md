@@ -226,4 +226,4 @@ const maxDistance = calculateMaxDistanceToRestaurants(
 ---
 
 تاريخ الإصلاح: 2025-12-03
-المطور: Antigravity AI Assistant
+**المطور:** Antigravity AI Assistant  With ibrahim shorib
