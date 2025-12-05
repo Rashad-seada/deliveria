@@ -20,7 +20,7 @@ services:
       - npm_app_network
     volumes:
       # Only mount uploads, code is in the image
-      - uploads_data:/deliveria/uploads
+      - uploads_data:/deliveria/deliveria_upload
 
   webserver:
     image: ${DOCKER_HUB_USERNAME}/deliveria-webserver:latest
@@ -33,7 +33,7 @@ services:
       - npm_app_network
     volumes:
       # Only mount uploads, config is in the image
-      - uploads_data:/var/www/uploads:ro
+      - uploads_data:/var/www/deliveria_upload:ro
     expose:
       - "80"
 
