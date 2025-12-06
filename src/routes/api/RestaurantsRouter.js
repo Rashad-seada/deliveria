@@ -69,14 +69,8 @@ router.get("/my_orders", checkToken, restaurantsController.myOrder);
 // قبول الطلب
 router.put("/accept_order/:id", checkToken, restaurantsController.acceptOrder);
 
-// تغيير حالة الطلب
-router.put("/change_status/:id", checkToken, restaurantsController.changeStatusOfOrder);
-
 // لوحة التحكم
 router.get("/home_data", checkToken, restaurantsController.getDataOfRestaurant);
-
-// جاري التجهيز
-router.put("/preparing_order/:id", checkToken, restaurantsController.preparingOrderAgent);
 
 // جاهز للاستلام
 router.put("/ready_for_pickup_order/:id", checkToken, restaurantsController.readyOrderAgent);

@@ -10,6 +10,7 @@ const bcrypt = require("bcrypt");
 const { hashSync, genSaltSync } = require("bcrypt");
 const jwt = require('jsonwebtoken');
 const { not_select, checkIsOpen, sendNotification } = require("./global");
+const { startOrderTimers } = require("./DeliveryController");
 const { setTimeout } = require('timers/promises');
 const mongoose = require("mongoose");
 const Order = require("../models/Orders");
@@ -713,33 +714,49 @@ module.exports.readyOrderAgent = async (req, res) => {
         const restaurantId = req.decoded.id;
         const { orderId, subOrderId } = req.params;
 
-        const order = await Order.findOneAndUpdate(
-            { "_id": orderId, "orders._id": subOrderId, "orders.restaurant_id": restaurantId },
-            { "$set": { "orders.$.status": "Ready for Delivery", "status": "Ready for Delivery", "order_status": "Ready for Delivery" } },
-            { new: true }
-        );
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
 
-        if (!order) return res.status(404).json({ message: "Order not found or not in 'Preparing' state" });
+        const subOrder = order.orders.id(subOrderId);
+        if (!subOrder || !subOrder.restaurant_id.equals(restaurantId)) {
+            return res.status(404).json({ message: "Sub-order not found for this restaurant" });
+        }
 
-        sendNotification([order.user_id], restaurantId, `Your order #${order.order_id} is ready for pickup.`);
+        if (subOrder.status !== "Preparing") {
+             return res.status(400).json({ message: `Cannot mark order as ready, status is already "${subOrder.status}"` });
+        }
 
-        return res.status(200).json({ message: "Order is ready for pickup.", order });
+        // Update the specific sub-order status
+        subOrder.status = "Ready for Delivery";
+
+        // Check if all other sub-orders are also ready
+        const allSubOrdersReady = order.orders.every(so => so.status === "Ready for Delivery" || so.status === "Canceled");
+
+        if (allSubOrdersReady) {
+            // If all are ready, update the main order status
+            order.status = "Ready for Delivery";
+            order.order_status = "Ready for Delivery";
+            
+            // Notify the user that the entire order is ready for pickup
+            sendNotification([order.user_id], restaurantId, `Your order #${order.order_id} is fully ready for pickup.`);
+            
+            // Start the timer to notify admins if the order is not accepted by an agent soon
+            startOrderTimers(order);
+        } else {
+            // If not all sub-orders are ready, just send a notification for the part that is ready
+            sendNotification([order.user_id], restaurantId, `A part of your order #${order.order_id} is ready for pickup.`);
+        }
+
+        const savedOrder = await order.save();
+
+        return res.status(200).json({ message: "Order status updated.", order: savedOrder });
+
     } catch (error) {
         console.error("readyOrderAgent error:", error);
         return res.status(500).json({ message: "Server error" });
     }
-};
-
-// دالة مؤقتة لمنع تعطل التطبيق بسبب مسار غير مستخدم
-module.exports.preparingOrderAgent = async (req, res) => {
-    // هذا المسار غير مستخدم حالياً. يمكنك إما إزالته من ملف المسارات أو تنفيذ المنطق المطلوب هنا.
-    return res.status(501).json({ message: "Not Implemented" });
-};
-
-// دالة مؤقتة لمنع تعطل التطبيق
-module.exports.changeStatusOfOrder = async (req, res) => {
-    // هذا المسار غير مستخدم حالياً. يمكنك إما إزالته من ملف المسارات أو تنفيذ المنطق المطلوب هنا.
-    return res.status(501).json({ message: "Not Implemented" });
 };
 
 // لوحة التحكم

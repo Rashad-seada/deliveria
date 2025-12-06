@@ -260,7 +260,7 @@ console.log(calculateDeliveryFee(7, "Multi"));   // 45 ✅
 ---
 
 **تاريخ الإنجاز:** 2025-12-03  
-**المطور:** Antigravity AI Assistant  
+**المطور:** Antigravity AI Assistant  With ibrahim shorib
 **الحالة:** ✅ مكتمل ومختبر  
 **الإصدار:** 1.0
 

@@ -13,11 +13,13 @@ const { calculateDistance, calculateEstimatedTime, calculateDeliveryFee, calcula
 // ####################################################################################################################
 // Note: Delivery calculation functions moved to src/utils/deliveryHelpers.js for reusability
 
-function startOrderTimers(order) {
+module.exports.startOrderTimers = (order) => {
     setTimeout(1500000).then(async () => { // 25 minutes
         try {
             const currentOrder = await Order.findById(order._id);
-            if (currentOrder && !["Canceled", "Completed", "Delivered"].includes(currentOrder.status)) {
+            // This timer checks if an order is waiting for an agent for too long.
+            // It should only trigger if the order is still "Ready for Delivery".
+            if (currentOrder && currentOrder.status === "Ready for Delivery") {
                 const admins = await Admin.find().select('_id');
                 const adminIds = admins.map(admin => admin._id);
                 sendNotification(adminIds, currentOrder.user_id, `Order #${order._id.toString().slice(-4)} has been waiting for an agent for 25 minutes.`);
@@ -27,6 +29,7 @@ function startOrderTimers(order) {
         }
     });
 }
+
 
 // ####################################################################################################################
 // #################################################### Agent-facing Functions ##########################################
@@ -148,7 +151,6 @@ module.exports.acceptOrder = async (req, res) => {
             }
         }, { new: true, populate: ['user_id', 'orders.restaurant_id'] });
 
-        startOrderTimers(updatedOrder);
         sendNotification([updatedOrder.user_id], agentId, `Your order #${orderId.slice(-4)} has been accepted by a delivery agent.`);
 
 
@@ -175,7 +177,7 @@ module.exports.updateOrderStatus = async (req, res) => {
             status = "Delivered";
         }
  
-        const validStatuses = ["On the way", "Delivered", "Completed", "Accepted", "Pick up"];
+        const validStatuses = ["On the way", "Delivered", "Completed"];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({ message: "Invalid status update." });
         }
@@ -190,8 +192,7 @@ module.exports.updateOrderStatus = async (req, res) => {
 
         // --- منطق التحقق من تسلسل الحالات ---
         const allowedTransitions = {
-            "Accepted": ["Pick up", "On the way", "Delivered"], // السماح بالانتقال مباشرة إلى "Delivered"
-            "Pick up": ["On the way"],
+            "Accepted": ["On the way"], // Agent has picked up the order and is heading to the customer.
             "On the way": ["Delivered"],
             "Delivered": ["Completed"]
         };
