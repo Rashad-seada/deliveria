@@ -104,10 +104,48 @@ module.exports.deleteAddress = async (req, res) => {
 
 module.exports.setDefaultAddress = async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.decoded.id, { $set: { address_id: req.params.id } });
+    const userId = req.decoded.id;
+    const addressId = req.params.id;
+
+    // ✅ Step 1: Verify the address exists and belongs to the user
+    const address = await Address.findOne({
+      _id: addressId,
+      user_id: userId
+    });
+
+    if (!address) {
+      return res.status(404).json({
+        success: false,
+        message: "Address not found or doesn't belong to you"
+      });
+    }
+
+    // ✅ Step 2: Update user's default address
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: { address_id: addressId } },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // ✅ Step 3: Return success with address details
     return res.status(200).json({
       success: true,
-      message: "Address is now default"
+      message: "Address is now default",
+      address: {
+        _id: address._id,
+        address_title: address.address_title,
+        phone: address.phone,
+        details: address.details,
+        coordinates: address.coordinates,
+        is_default: true
+      }
     });
   } catch (error) {
     console.error("Error setting default address:", error);
