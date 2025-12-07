@@ -114,7 +114,7 @@ module.exports.login = async (req, res, next) => {
 
 module.exports.getData = async (req, res, next) => {
     try {
-        const { id, user_type } = req.body.decoded
+        const { id, user_type } = req.decoded
 
         let entity, responseKey;
 

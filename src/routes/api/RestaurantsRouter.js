@@ -67,13 +67,13 @@ router.put("/add_review", checkToken, restaurantsController.addReview);
 router.get("/my_orders", checkToken, restaurantsController.myOrder);
 
 // قبول الطلب
-router.put("/accept_order/:id", checkToken, restaurantsController.acceptOrder);
+router.put("/accept_order/:orderId/:subOrderId", checkToken, restaurantsController.acceptOrder);
 
 // لوحة التحكم
 router.get("/home_data", checkToken, restaurantsController.getDataOfRestaurant);
 
 // جاهز للاستلام
-router.put("/ready_for_pickup_order/:id", checkToken, restaurantsController.readyOrderAgent);
+router.put("/ready_for_pickup_order/:orderId/:subOrderId", checkToken, restaurantsController.readyOrderAgent);
 
 // أفضل المبيعات
 router.get("/best_seller/:id", checkToken, restaurantsController.getBestSellerItems);

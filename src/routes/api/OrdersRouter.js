@@ -7,6 +7,6 @@ router.get("/all", checkToken, orderController.getAllOrders);
 router.get("/id/:id", checkToken, orderController.getOrderById);
 router.post("/add", checkToken, orderController.createOrder);
 router.put("/reorder/:id", checkToken, orderController.reorder);
-router.put("/update_all", orderController.updateAll);
+
 
 module.exports = router;
