@@ -10,14 +10,10 @@ const userSchema = new Schema({
   password: { type: String, required: true },
   ban: { type: Boolean, default: false },
   fcm_token: { type: String, default: null },
-  points: { type: Number, default: 0 },
-  address_id: {
-    type: Schema.Types.ObjectId,
-    ref: "Address"
-  }
+  points: { type: Number, default: 0 }
 }, { timestamps: true });
 
-userSchema.statics.isPhoneTaken = async function(phone) {
+userSchema.statics.isPhoneTaken = async function (phone) {
   if (!phone) throw new Error("Invalid phone");
   const user = await this.findOne({ phone });
   return !!user;
