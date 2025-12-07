@@ -23,27 +23,39 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
     return R * c; // Distance in kilometers
 };
 
+const getAccountModel = (userType) => {
+    if (userType === "Restaurant") return Restaurant;
+    return User;
+};
+
 module.exports.getCart = async (req, res) => {
     try {
-        const { id } = req.decoded;
+        const { id, user_type } = req.decoded;
+        const Model = getAccountModel(user_type);
 
-        const user = await User.findById(id)
+        const account = await Model.findById(id);
+
+        if (!account) {
+            console.log(`GetCart: Account not found for ID ${id} Type ${user_type}`);
+            return res.status(404).json({ success: false, message: 'Account not found' });
+        }
 
         let address;
 
-        if (user.address_id) {
-            address = await Address.findById(user.address_id)
+        if (account.address_id) {
+            address = await Address.findById(account.address_id);
 
             // ✅ Self-Healing: If address_id exists but invalid (dangling), clear it
             if (!address) {
-                console.log(`Self-healing: Clearing invalid address_id ${user.address_id} for user ${id}`);
-                user.address_id = undefined;
-                await user.save();
+                console.log(`Self-healing: Clearing invalid address_id ${account.address_id} for user ${id}`);
+                account.address_id = undefined;
+                await account.save();
             }
         }
 
         // Handle case where user has no default address
         if (!address) {
+            console.log(`GetCart: No address found for user ${id}`);
             const cartForInfo = await findUserCart(id);
             return res.status(400).json({ success: false, message: 'No default address set. Please select an address.', cart: cartForInfo });
         }
