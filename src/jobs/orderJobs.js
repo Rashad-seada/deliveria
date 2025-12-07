@@ -10,6 +10,10 @@ const startOrderProcessingJob = () => {
     const now = new Date();
 
     try {
+      // Fetch admins once outside the loop
+      const admins = await Admin.find().select('_id');
+      const adminIds = admins.map(admin => admin._id);
+
       // Find orders that are still "New" and could be late or need cancellation
       const pendingOrders = await Order.find({ status: 'New' });
 
@@ -30,13 +34,10 @@ const startOrderProcessingJob = () => {
               sendNotification([order.user_id], null, `A part of your order #${order.order_id} was canceled due to no response from the restaurant.`);
             }
             // Condition 2: Notify admins after 10 minutes (but before cancellation)
-            else if (minutesPassed > 10) {
-              // To avoid spamming, we should add a flag to see if notification was already sent
-              // For simplicity here, we just send it. In a real app, add a `notification_sent` flag.
-              const admins = await Admin.find().select('_id');
-              const adminIds = admins.map(admin => admin._id);
+            else if (minutesPassed > 10 && !subOrder.notification_sent) { // Check notification_sent flag
               console.log(`Notifying admins about pending order #${order.order_id}`);
               sendNotification(adminIds, order.user_id, `Order #${order.order_id} from restaurant ${subOrder.restaurant_id} has been pending for over 10 minutes.`);
+              subOrder.notification_sent = true; // Set flag to true after sending notification
             }
           }
 

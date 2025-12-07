@@ -43,6 +43,15 @@ app.use(express.json({ limit: "10mb" })); // Increased limit and consolidated
 app.use(router);
 app.use('/deliveria_upload', express.static(path.join(__dirname, 'deliveria_upload')));
 
+// Global Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack); // Log the error stack for debugging
+  res.status(err.statusCode || 500).json({
+    message: err.message || 'An unexpected error occurred.',
+    error: process.env.NODE_ENV === 'production' ? {} : err // Don't expose error details in production
+  });
+});
+
 connectDB().then(() => {
   app.listen(port, () => {
     console.log(`server is starting at port ${port}`);

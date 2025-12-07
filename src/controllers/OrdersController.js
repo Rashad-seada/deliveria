@@ -86,7 +86,7 @@ module.exports.createOrder = async (req, res) => {
             price_of_restaurant: cartItem.price_of_restaurant,
             status: "Pending Approval",
             cancel_me: false,
-            created_at: new Date()
+            // Removed manual created_at, relying on Mongoose timestamps
         }));
 
         const orderId = await getNextSequenceValue('order_id');
@@ -111,10 +111,10 @@ module.exports.createOrder = async (req, res) => {
         await Cart.findOneAndDelete({ user_id: userId });
 
         // Notify all involved restaurants
+        // Assuming sendNotification can take an array of restaurant_ids and also the user_id for context
         sendNotification(restaurantIds, userId, `You have a new order #${savedOrder.order_id}. Please check your dashboard.`);
 
-        // Start the timers for admin notification and auto-cancellation
-        startOrderTimers(savedOrder);
+        // Removed the call to startOrderTimers(savedOrder); as cron job handles it.
 
         return res.status(201).json({
             success: true,
@@ -126,47 +126,6 @@ module.exports.createOrder = async (req, res) => {
         return handleErrorResponse(res, error, "Error creating order.");
     }
 };
-
-function startOrderTimers(order) {
-    order.orders.forEach((orderItem, index) => {
-        if (orderItem.status === "Pending Approval") {
-            // Timer 1: Notify admins after 10 minutes if order is still new
-            setTimeout(600000).then(async () => {
-                try {
-                    const currentOrder = await Order.findById(order._id);
-                    if (currentOrder && currentOrder.orders[index].status === 'Pending Approval') {
-                        const admins = await Admin.find().select('_id');
-                        const adminIds = admins.map(admin => admin._id);
-                        sendNotification(adminIds, currentOrder.user_id, `Order #${currentOrder.order_id} from restaurant ${orderItem.restaurant_id} has been pending for 10 minutes.`);
-                    }
-                } catch (error) {
-                    console.error('Error in 10-minute order timer:', error);
-                }
-            });
-
-            // Timer 2: Auto-cancel sub-order after 20 minutes if still new
-            setTimeout(1200000).then(async () => {
-                try {
-                    const currentOrder = await Order.findById(order._id);
-                    if (currentOrder && currentOrder.orders[index].status === 'Pending Approval') {
-                        currentOrder.orders[index].status = "Canceled";
-                        
-                        // Check if all sub-orders are canceled to cancel the main order
-                        const allCanceled = currentOrder.orders.every(o => o.status === "Canceled");
-                        if (allCanceled) {
-                            currentOrder.status = "Canceled"; // Also update order_status
-                            currentOrder.order_status = "Canceled";
-                        }
-                        await currentOrder.save();
-                        sendNotification([currentOrder.user_id], null, `Part of your order #${currentOrder.order_id} was automatically canceled due to no response from the restaurant.`);
-                    }
-                } catch (error) {
-                    console.error('Error in 20-minute auto-cancel timer:', error);
-                }
-            });
-        }
-    });
-}
 
 // ... (keep the rest of the file as is, since it's mostly cart logic)
 
@@ -322,86 +281,65 @@ function buildResponseData(originalCart, enrichedCarts, finalPriceWithoutDeliver
 
 module.exports.reorder = async (req, res) => {
     try {
-        const order = await Order.findById(req.params.id);
+        const userId = req.decoded.id;
+        const { id: orderId } = req.params; // Assuming the order ID is passed in params
 
-        // Use Promise.all to wait for all async operations to complete
-        const list = await Promise.all(order.orders.map(async (orderAgain) => {
-            let mapOrder = {
-                restaurant_id: orderAgain.restaurant_id,
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return res.status(404).json({ message: "Order not found." });
+        }
+
+        // Clear existing cart for the user
+        await Cart.findOneAndDelete({ user_id: userId });
+
+        const newCartItems = [];
+        for (const subOrder of order.orders) {
+            const restaurantCart = {
+                restaurant_id: subOrder.restaurant_id,
                 items: []
             };
+            for (const item of subOrder.items) {
+                // Ensure item exists in DB
+                const itemData = await Item.findById(item.item_details.item_id);
+                if (itemData) {
+                    const toppings = item.topping_details.map(topping => ({
+                        topping: topping.topping_id,
+                        topping_quantity: topping.quantity
+                    }));
 
-            // Process items sequentially with Promise.all
-            await Promise.all(orderAgain.items.map(async (item) => {
-                try {
-                    const itemData = await Item.findById(item.item_details.item_id);
-                    if (itemData) {
-                        mapOrder.items.push({
-                            item_id: item.item_details.item_id,
-                            size: item.size_details.size_id,
-                            quantity: item.size_details.quantity,
-                            topping: item.topping_details.topping_id,
-                            topping_quantity: item.topping_details.quantity,
-                            description: item.description
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error fetching item:', error);
-                    // You might want to handle individual item errors differently
+                    restaurantCart.items.push({
+                        item_id: item.item_details.item_id,
+                        size: item.size_details.size_id,
+                        quantity: item.size_details.quantity,
+                        toppings: toppings, // Corrected assignment
+                        description: item.description
+                    });
                 }
-            }));
-
-            return mapOrder;
-        }));
-
-        const cart = await Cart.findOne({ user_id: req.decoded.id })
-
-        if (cart) {
-            if (cart.carts.length === 0) {
-                await Cart.findByIdAndDelete(cart._id)
-            } else {
-                return res.status(200).json({
-                    message: "Please clear your cart"
-                });
+            }
+            if (restaurantCart.items.length > 0) {
+                newCartItems.push(restaurantCart);
             }
         }
 
-        const newCart = Cart({
-            user_id: req.decoded.id,
-            carts: list
-        })
-
-        await newCart.save().then(async (newC) => {
-            return res.status(200).json({
-                message: "Done reorder"
-            });
-        })
-    } catch (error) {
-        console.error('Cart retrieval error:', error);
-        return res.status(500).json({
-            message: "Error retrieving cart"
-        });
-    }
-};
-
-module.exports.updateAll = async (req, res) => {
-    try {
-        const orders = await Order.find();
-
-        let x = 1000;
-        for (const order of orders) {
-            order.order_id = x
-            await order.save(); // Save the changes
-            x += 1
+        if (newCartItems.length === 0) {
+            return res.status(400).json({ message: "No valid items to reorder." });
         }
 
+        const newCart = new Cart({
+            user_id: userId,
+            carts: newCartItems
+        });
+
+        await newCart.save();
+
         return res.status(200).json({
-            message: "All units updated successfully!",
+            message: "Order reordered successfully into your cart!",
+            cart: newCart
         });
+
     } catch (error) {
-        console.error(error.message);
-        return res.status(500).json({
-            message: "Error updating units.",
-        });
+        console.error('Error reordering:', error);
+        return handleErrorResponse(res, error, "Error reordering cart.");
     }
 };
+

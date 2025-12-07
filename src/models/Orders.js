@@ -97,6 +97,7 @@ const orderSchema = new Schema(
           type: String,
           default: "Pending Approval"
         },
+        notification_sent: { type: Boolean, default: false },
         cancel_me: Boolean
       }
     ],
