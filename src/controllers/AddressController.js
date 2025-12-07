@@ -47,8 +47,11 @@ module.exports.createAddress = async (req, res) => {
 
 module.exports.getAddress = async (req, res) => {
   try {
-    const addresses = await Address.find({ user_id: req.decoded.id });
-    const user = await User.findById(req.decoded.id);
+    // Run queries in parallel for performance
+    const [addresses, user] = await Promise.all([
+      Address.find({ user_id: req.decoded.id }).lean(),
+      User.findById(req.decoded.id).select("address_id").lean()
+    ]);
 
     if (!user) {
       return res.status(404).json({
@@ -57,10 +60,12 @@ module.exports.getAddress = async (req, res) => {
       });
     }
 
-    const addressesWithIsDefault = addresses.map(address => {
-      const is_default = user.address_id?.toString() === address._id.toString();
-      return { ...address.toObject(), is_default };
-    });
+    const defaultAddressId = user.address_id?.toString();
+
+    const addressesWithIsDefault = addresses.map(address => ({
+      ...address,
+      is_default: defaultAddressId === address._id.toString()
+    }));
 
     return res.status(200).json({
       success: true,
