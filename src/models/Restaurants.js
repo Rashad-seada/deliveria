@@ -11,6 +11,7 @@ const restaurantSchema = new Schema(
             type: String,
             required: true,
         },
+        address_id: { type: Schema.Types.ObjectId, ref: "address", default: null },
         super_category: [{
             type: Schema.Types.ObjectId,
             ref: "super_categories",

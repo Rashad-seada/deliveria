@@ -1,11 +1,18 @@
 const Address = require("../models/Address");
 const User = require("../models/Users");
+const Restaurant = require("../models/Restaurants"); // Import Restaurant model
+
+// Helper to get the correct model based on user type
+const getAccountModel = (userType) => {
+  if (userType === "Restaurant") return Restaurant;
+  return User;
+};
 
 module.exports.createAddress = async (req, res) => {
   try {
     const body = req.body || {};
 
-    // ✅ تحقق من الحقول المطلوبة
+    // ✅ Validate required fields
     if (!body.address_title || !body.phone || !body.details) {
       return res.status(400).json({
         success: false,
@@ -26,9 +33,10 @@ module.exports.createAddress = async (req, res) => {
 
     await address.save();
 
-    // ✅ تعيين العنوان الافتراضي عند الطلب
+    // ✅ Set default address if requested
     if (body.default === true) {
-      await User.findByIdAndUpdate(req.decoded.id, { $set: { address_id: address._id } });
+      const Model = getAccountModel(req.decoded.user_type);
+      await Model.findByIdAndUpdate(req.decoded.id, { $set: { address_id: address._id } });
     }
 
     return res.status(200).json({
@@ -47,20 +55,22 @@ module.exports.createAddress = async (req, res) => {
 
 module.exports.getAddress = async (req, res) => {
   try {
+    const Model = getAccountModel(req.decoded.user_type);
+
     // Run queries in parallel for performance
-    const [addresses, user] = await Promise.all([
+    const [addresses, account] = await Promise.all([
       Address.find({ user_id: req.decoded.id }).lean(),
-      User.findById(req.decoded.id).select("address_id").lean()
+      Model.findById(req.decoded.id).select("address_id").lean()
     ]);
 
-    if (!user) {
+    if (!account) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "Account not found"
       });
     }
 
-    const defaultAddressId = user.address_id?.toString();
+    const defaultAddressId = account.address_id?.toString();
 
     const addressesWithIsDefault = addresses.map(address => ({
       ...address,
@@ -87,12 +97,13 @@ module.exports.deleteAddress = async (req, res) => {
       user_id: req.decoded.id
     });
 
-    const user = await User.findById(req.decoded.id);
+    const Model = getAccountModel(req.decoded.user_type);
+    const account = await Model.findById(req.decoded.id);
 
     if (deleted) {
-      if (user && user.address_id && user.address_id.toString() === req.params.id) {
-        user.address_id = undefined;
-        await user.save();
+      if (account && account.address_id && account.address_id.toString() === req.params.id) {
+        account.address_id = undefined;
+        await account.save();
       }
 
       return res.status(200).json({
@@ -102,7 +113,7 @@ module.exports.deleteAddress = async (req, res) => {
     } else {
       return res.status(404).json({
         success: false,
-        message: "Address not found or not owned by user"
+        message: "Address not found or not owned by you"
       });
     }
   } catch (error) {
@@ -133,16 +144,17 @@ module.exports.setDefaultAddress = async (req, res) => {
     }
 
     // ✅ Step 2: Update user's default address
-    const updatedUser = await User.findByIdAndUpdate(
+    const Model = getAccountModel(req.decoded.user_type);
+    const updatedAccount = await Model.findByIdAndUpdate(
       userId,
       { $set: { address_id: addressId } },
       { new: true }
     );
 
-    if (!updatedUser) {
+    if (!updatedAccount) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: "Account not found"
       });
     }
 
