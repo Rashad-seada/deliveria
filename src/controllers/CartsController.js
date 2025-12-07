@@ -33,6 +33,13 @@ module.exports.getCart = async (req, res) => {
 
         if (user.address_id) {
             address = await Address.findById(user.address_id)
+
+            // ✅ Self-Healing: If address_id exists but invalid (dangling), clear it
+            if (!address) {
+                console.log(`Self-healing: Clearing invalid address_id ${user.address_id} for user ${id}`);
+                user.address_id = undefined;
+                await user.save();
+            }
         }
 
         // Handle case where user has no default address
@@ -155,7 +162,7 @@ async function processCartItems(cart, id, latitude, longitude) {
             price_of_restaurant: restaurantPrice
         };
     }));
-    
+
     return {
         enrichedCarts,
         finalPriceWithoutDelivery,
@@ -242,114 +249,114 @@ function handleErrorResponse(res, error) {
     });
 }
 module.exports.addCart = async (req, res) => {
-  try {
-    if (!req.decoded || !req.decoded.id) {
-      return res.status(401).json({ success: false, message: "Unauthorized: Invalid or missing token" });
-    }
+    try {
+        if (!req.decoded || !req.decoded.id) {
+            return res.status(401).json({ success: false, message: "Unauthorized: Invalid or missing token" });
+        }
 
-    const userId = req.decoded.id;
-    const body = req.body;
+        const userId = req.decoded.id;
+        const body = req.body;
 
-    const restaurant = await Restaurant.findById(body.restaurant_id);
-    if (!restaurant) {
-      return res.status(404).json({ success: false, message: "Restaurant not found" });
-    }
+        const restaurant = await Restaurant.findById(body.restaurant_id);
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
 
-    let cart = await Cart.findOne({ user_id: userId });
+        let cart = await Cart.findOne({ user_id: userId });
 
-    // ✅ أول مرة يضيف
-    if (!cart) {
-      let newCart = new Cart({
-        user_id: userId,
-        carts: [
-          {
-            restaurant_id: body.restaurant_id,
-            items: [
-              {
-                item_id: body.item_id,
-                size: body.size,
-                quantity: 1,
-                toppings: body.toppings?.map(t => ({
-                  topping: t.topping,
-                  topping_quantity: 1
-                })) || [],
-                description: body.description || ""
-              }
-            ]
-          }
-        ]
-      });
+        // ✅ أول مرة يضيف
+        if (!cart) {
+            let newCart = new Cart({
+                user_id: userId,
+                carts: [
+                    {
+                        restaurant_id: body.restaurant_id,
+                        items: [
+                            {
+                                item_id: body.item_id,
+                                size: body.size,
+                                quantity: 1,
+                                toppings: body.toppings?.map(t => ({
+                                    topping: t.topping,
+                                    topping_quantity: 1
+                                })) || [],
+                                description: body.description || ""
+                            }
+                        ]
+                    }
+                ]
+            });
 
-      await newCart.save();
-      return res.status(200).json({ success: true, message: "Added to cart" });
-    }
+            await newCart.save();
+            return res.status(200).json({ success: true, message: "Added to cart" });
+        }
 
-    // ✅ لو فيه كارت بالفعل
-    const itemExists = cart.carts.some(cartMap =>
-      cartMap.restaurant_id.equals(body.restaurant_id) &&
-      cartMap.items.some(itemsMap =>
-        itemsMap.item_id.equals(body.item_id) &&
-        itemsMap.size.equals(body.size) &&
-        areToppingsEqual(itemsMap.toppings, body.toppings)
-      )
-    );
+        // ✅ لو فيه كارت بالفعل
+        const itemExists = cart.carts.some(cartMap =>
+            cartMap.restaurant_id.equals(body.restaurant_id) &&
+            cartMap.items.some(itemsMap =>
+                itemsMap.item_id.equals(body.item_id) &&
+                itemsMap.size.equals(body.size) &&
+                areToppingsEqual(itemsMap.toppings, body.toppings)
+            )
+        );
 
-    if (itemExists) {
-      return res.status(200).json({ success: false, message: "Already in cart" });
-    }
+        if (itemExists) {
+            return res.status(200).json({ success: false, message: "Already in cart" });
+        }
 
-    const hasRestaurant = cart.carts.some(c => c.restaurant_id.equals(body.restaurant_id));
+        const hasRestaurant = cart.carts.some(c => c.restaurant_id.equals(body.restaurant_id));
 
-    if (!hasRestaurant) {
-      if (cart.carts.length >= 3) {
-        return res.status(400).json({ success: false, message: "Only 3 restaurants allowed in cart" });
-      }
+        if (!hasRestaurant) {
+            if (cart.carts.length >= 3) {
+                return res.status(400).json({ success: false, message: "Only 3 restaurants allowed in cart" });
+            }
 
-      cart.carts.push({
-        restaurant_id: body.restaurant_id,
-        items: [
-          {
+            cart.carts.push({
+                restaurant_id: body.restaurant_id,
+                items: [
+                    {
+                        item_id: body.item_id,
+                        size: body.size,
+                        quantity: 1,
+                        toppings: body.toppings?.map(t => ({
+                            topping: t.topping,
+                            topping_quantity: 1
+                        })) || [],
+                        description: body.description || ""
+                    }
+                ]
+            });
+
+            await cart.save();
+            return res.status(200).json({ success: true, message: "Added to cart" });
+        }
+
+        // ✅ نفس المطعم
+        const restaurantCart = cart.carts.find(c => c.restaurant_id.equals(body.restaurant_id));
+        restaurantCart.items.push({
             item_id: body.item_id,
             size: body.size,
             quantity: 1,
             toppings: body.toppings?.map(t => ({
-              topping: t.topping,
-              topping_quantity: 1
+                topping: t.topping,
+                topping_quantity: 1
             })) || [],
             description: body.description || ""
-          }
-        ]
-      });
+        });
 
-      await cart.save();
-      return res.status(200).json({ success: true, message: "Added to cart" });
+        await cart.save();
+        return res.status(200).json({ success: true, message: "Added to cart" });
+
+    } catch (error) {
+        // تحسين رسالة الخطأ
+        if (error.name === 'ValidationError' && error.errors['carts.0.items.0.size']) {
+            return res.status(400).json({ success: false, message: "Invalid format for 'size'. Please provide a valid size ID." });
+        }
+
+        console.error("Cart add error:", error.message);
+        return res.status(500).json({ success: false, message: "Server error" });
     }
-
-    // ✅ نفس المطعم
-    const restaurantCart = cart.carts.find(c => c.restaurant_id.equals(body.restaurant_id));
-    restaurantCart.items.push({
-      item_id: body.item_id,
-      size: body.size,
-      quantity: 1,
-      toppings: body.toppings?.map(t => ({
-        topping: t.topping,
-        topping_quantity: 1
-      })) || [],
-      description: body.description || ""
-    });
-
-    await cart.save();
-    return res.status(200).json({ success: true, message: "Added to cart" });
-
-  } catch (error) {
-    // تحسين رسالة الخطأ
-    if (error.name === 'ValidationError' && error.errors['carts.0.items.0.size']) {
-        return res.status(400).json({ success: false, message: "Invalid format for 'size'. Please provide a valid size ID." });
-    }
-
-    console.error("Cart add error:", error.message);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
 };
 
 
