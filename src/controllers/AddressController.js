@@ -50,6 +50,13 @@ module.exports.getAddress = async (req, res) => {
     const addresses = await Address.find({ user_id: req.decoded.id });
     const user = await User.findById(req.decoded.id);
 
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
     const addressesWithIsDefault = addresses.map(address => {
       const is_default = user.address_id?.toString() === address._id.toString();
       return { ...address.toObject(), is_default };
