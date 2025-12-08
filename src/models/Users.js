@@ -10,7 +10,8 @@ const userSchema = new Schema({
   password: { type: String, required: true },
   ban: { type: Boolean, default: false },
   fcm_token: { type: String, default: null },
-  points: { type: Number, default: 0 }
+  points: { type: Number, default: 0 },
+  address_id: { type: Schema.Types.ObjectId, ref: "address", default: null } // Added field
 }, { timestamps: true });
 
 userSchema.statics.isPhoneTaken = async function (phone) {
