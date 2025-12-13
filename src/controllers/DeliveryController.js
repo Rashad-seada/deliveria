@@ -113,7 +113,7 @@ module.exports.acceptOrder = async (req, res) => {
         // The agent is accepting the order. The status should become "Accepted".
         // The restaurant will later change it to "Ready for pickup".
         const newStatus = "Accepted";
-        
+
         const agent = await Agent.findById(agentId);
         if (!agent) {
             return res.status(404).json({ message: "Agent profile not found." });
@@ -122,7 +122,7 @@ module.exports.acceptOrder = async (req, res) => {
         // حساب المسافة من المطاعم إلى العميل (وليس من الدليفري إلى العميل)
         const restaurantIds = order.orders.map(o => o.restaurant_id);
         const restaurants = await Restaurant.find({ '_id': { $in: restaurantIds } }).select('coordinates');
-        
+
         if (restaurants.length === 0) {
             return res.status(400).json({ message: "No restaurants found for this order." });
         }
@@ -144,10 +144,10 @@ module.exports.acceptOrder = async (req, res) => {
         };
 
         const updatedOrder = await Order.findByIdAndUpdate(orderId, {
-            $set: { 
-                agent: { agent_id: agentId, assigned_at: new Date() }, 
+            $set: {
+                agent: { agent_id: agentId, assigned_at: new Date() },
                 status: newStatus, // "Accepted"
-                delivery_details: deliveryDetails 
+                delivery_details: deliveryDetails
             }
         }, { new: true, populate: ['user_id', 'orders.restaurant_id'] });
 
@@ -176,7 +176,7 @@ module.exports.updateOrderStatus = async (req, res) => {
         if (status === "DELIVERED") {
             status = "Delivered";
         }
- 
+
         const validStatuses = ["On the way", "Delivered", "Completed"];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({ message: "Invalid status update." });
@@ -207,7 +207,7 @@ module.exports.updateOrderStatus = async (req, res) => {
 
         // Update the main order status
         order.status = status;
-        
+
         // إضافة سجل زمني للحالة الجديدة
         order.status_timeline.push({ status: status, timestamp: new Date(), note: `Updated by agent` });
 
@@ -299,7 +299,7 @@ exports.updateAgentLocation = async (req, res) => {
             // ملاحظة: delivery_fee لا يتم تغييرها لأنها محسوبة من المطعم وليس من موقع الدليفري
             activeOrder.delivery_details.distance = currentDistanceToCustomer;
             activeOrder.delivery_details.estimated_time = calculateEstimatedTime(currentDistanceToCustomer);
-            
+
             // delivery_fee يجب أن تبقى ثابتة كما تم حسابها عند قبول الطلب
 
             await activeOrder.save();

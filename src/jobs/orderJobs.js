@@ -14,16 +14,16 @@ const startOrderProcessingJob = () => {
       const admins = await Admin.find().select('_id');
       const adminIds = admins.map(admin => admin._id);
 
-      // Find orders that are still "New" and could be late or need cancellation
-      const pendingOrders = await Order.find({ status: 'New' });
+      // Find orders that are still "Pending Approval" and could be late or need cancellation
+      const pendingOrders = await Order.find({ status: 'Pending Approval' });
 
       for (const order of pendingOrders) {
         // Process each sub-order within the main order
         let allSubOrdersCanceled = true;
 
         for (const subOrder of order.orders) {
-          if (subOrder.status === 'New') {
-            const orderTime = new Date(subOrder.created_at);
+          if (subOrder.status === 'Pending Approval') {
+            const orderTime = new Date(order.createdAt);
             const minutesPassed = (now - orderTime) / (1000 * 60);
 
             // Condition 1: Auto-cancel sub-order after 20 minutes
