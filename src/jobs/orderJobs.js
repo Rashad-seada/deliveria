@@ -62,7 +62,9 @@ const startOrderProcessingJob = () => {
               subOrder.status = 'Canceled';
 
               const msg = `Part of order #${order.order_id} canceled (no response).`;
-              sendNotification([order.user_id], null, msg);
+              // Use the first admin as the logical sender for system messages
+              const systemSenderId = adminIds.length > 0 ? adminIds[0] : null;
+              sendNotification([order.user_id], systemSenderId, msg);
 
               // Also add to timeline if possible, but schema structure is on main order usually
             }
