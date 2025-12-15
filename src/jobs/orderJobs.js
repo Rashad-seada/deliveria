@@ -51,10 +51,9 @@ const startOrderProcessingJob = () => {
 
         for (let i = 0; i < order.orders.length; i++) {
           const subOrder = order.orders[i];
-          console.log(`[OrderJobs]   - Sub-order [${i}] status: ${subOrder.status}`); // DEBUG LOG
+          console.log(`[OrderJobs V2] - Sub-order [${i}] status: ${subOrder.status}`); // DEBUG V2
 
-          // Check both 'Pending Approval' and 'Accepted' for sub-orders
-          // Also check 'Ready for Delivery' because Accepted orders have sub-orders as Ready
+          // Check 'Pending Approval', 'Accepted', and 'Ready for Delivery'
           if (['Pending Approval', 'Accepted', 'Ready for Delivery'].includes(subOrder.status)) {
 
             // PRIORITY 1: Cancel if over cancellation threshold
