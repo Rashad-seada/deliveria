@@ -95,6 +95,12 @@ const startOrderProcessingJob = () => {
           console.log(`[OrderJobs]   -> ACTION: Main order #${order.order_id} marked as Canceled.`);
         }
 
+        // Fix for missing order_type on legacy orders
+        if (!order.order_type) {
+          order.order_type = order.orders.length > 1 ? 'Multi' : 'Single';
+          console.log(`[OrderJobs]   - Auto-fixed missing order_type to: ${order.order_type}`);
+        }
+
         await order.save();
         console.log(`[OrderJobs]   - Saved Order #${order.order_id}`);
       }
