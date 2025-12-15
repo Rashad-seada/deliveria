@@ -15,6 +15,7 @@ const orderSchema = new Schema(
         "Pending Approval", // بانتظار الموافقة
         "Preparing",        // جاري التحضير
         "Ready for Delivery", // جاهز للتسليم
+        "Accepted",         // تم القبول من المندوب
         "On the way",       // تم الاستلام / في الطريق
         "Delivered",        // تم التسليم
         "Completed",        // مكتمل (بعد التسليم)
