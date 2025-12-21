@@ -42,28 +42,43 @@ module.exports.checkIsOpen = (open_hour, close_hour) => {
 }
 
 module.exports.sendNotification = async (ids, sender_id, message) => {
-    try {
-        for (let i = 0; i < ids.length; i++) {
+    console.log(`[DEBUG Notification] Request to send notification to ${ids.length} users. Message: "${message}"`);
+    // Process all notifications in parallel so one failure doesn't stop the rest
+    const promises = ids.map(async (id) => {
+        try {
+            if (!id) {
+                console.warn('[DEBUG Notification] Skipped empty user ID');
+                return;
+            }
+
+            console.log(`[DEBUG Notification] Processing user ID: ${id}`);
             let notification = new Notification({
-                user_id: ids[i],
+                user_id: id,
                 sender_id: sender_id,
                 message: message.trim(),
                 seen: false
-            })
+            });
 
-            await notification.save()
-            await sendFirebaseNotifyRequest(ids[i], message.trim());
+            await notification.save();
+            console.log(`[DEBUG Notification] Saved to DB for user ${id}. Now sending to Firebase...`);
+
+            const firebaseResult = await sendFirebaseNotifyRequest(id, message.trim());
+            console.log(`[DEBUG Notification] Firebase result for user ${id}: ${firebaseResult ? 'SUCCESS' : 'FAILED'}`);
+        } catch (error) {
+            console.error(`[DEBUG Notification] ERROR sending to user ${id}:`, error);
+            // Continue processing other users
         }
-    } catch (error) {
-        console.log(error)
-        return false
-    }
+    });
+
+    await Promise.allSettled(promises);
+    console.log('[DEBUG Notification] Finished processing all recipients.');
 }
 
 async function sendFirebaseNotifyRequest(id, body) {
     const admin = require('firebase-admin');
 
     if (!admin.apps.length) {
+        console.log('[DEBUG Firebase] Initializing Firebase Admin SDK...');
         admin.initializeApp({
             credential: admin.credential.cert({
                 projectId: process.env.projectId,
@@ -76,9 +91,11 @@ async function sendFirebaseNotifyRequest(id, body) {
     const messaging = admin.messaging();
     const tokenholder = await FBtoken.findOne({ id: id });
     if (!tokenholder) {
+        console.warn(`[DEBUG Firebase] No FCM token found for user ID: ${id}`);
         return false;
     }
     const token = tokenholder.FBtoken;
+    console.log(`[DEBUG Firebase] Found token for user ${id}: ${token.substring(0, 10)}...`);
 
     if (token) {
 
@@ -98,12 +115,13 @@ async function sendFirebaseNotifyRequest(id, body) {
 
         try {
             const response = await messaging.send(message);
+            console.log(`[DEBUG Firebase] Successfully sent message to ${id}. Response: ${response}`);
             return true;
         } catch (error) {
-            console.error(error);
+            console.error(`[DEBUG Firebase] Error sending to ${id}:`, error);
             return false;
         }
-    }else{
+    } else {
         return false;
     }
 }

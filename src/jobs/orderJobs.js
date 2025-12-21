@@ -9,9 +9,9 @@ const startOrderProcessingJob = () => {
 
   cron.schedule('* * * * *', async () => {
     const now = new Date();
-    // Testing Thresholds (in minutes)
-    const NOTIFY_THRESHOLD_MINUTES = 1;
-    const CANCEL_THRESHOLD_MINUTES = 2;
+    // Production Thresholds (in minutes)
+    const NOTIFY_THRESHOLD_MINUTES = 10;
+    const CANCEL_THRESHOLD_MINUTES = 20;
 
     console.log('========================================');
     console.log(`[OrderJobs] Running check at: ${now.toISOString()}`);
