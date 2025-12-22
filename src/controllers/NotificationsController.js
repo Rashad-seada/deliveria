@@ -7,13 +7,13 @@ const { sendNotification } = require("./global");
 
 module.exports.createNotification = async (req, res, next) => {
     try {
-        await sendNotification(req.body.ids, req.body.decoded.id, req.body.message.trim());
+        await sendNotification(req.body.ids, req.decoded.id, req.body.message.trim());
 
         return res.status(200).json({ message: "Done send notification" });
     } catch (error) {
         console.log(error)
         return res.status(500).json({
-            message: "Error retrieving restaurants",
+            message: "Error creating notification",
             error: error.message
         });
     }
