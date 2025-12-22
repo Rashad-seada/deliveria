@@ -79,11 +79,24 @@ async function sendFirebaseNotifyRequest(id, body) {
 
     if (!admin.apps.length) {
         console.log('[DEBUG Firebase] Initializing Firebase Admin SDK...');
+        console.log(`[DEBUG Firebase] projectId: ${process.env.projectId}`);
+        console.log(`[DEBUG Firebase] clientEmail: ${process.env.clientEmail}`);
+
+        const rawKey = process.env.privateKey;
+        if (rawKey) {
+            console.log(`[DEBUG Firebase] privateKey length: ${rawKey.length}`);
+            console.log(`[DEBUG Firebase] privateKey start: ${rawKey.substring(0, 30)}...`);
+            // Check for literal \n characters vs real newlines
+            console.log(`[DEBUG Firebase] privateKey includes literal \\n: ${rawKey.includes('\\n')}`);
+        } else {
+            console.error('[DEBUG Firebase] privateKey is MISSING!');
+        }
+
         admin.initializeApp({
             credential: admin.credential.cert({
                 projectId: process.env.projectId,
                 clientEmail: process.env.clientEmail,
-                privateKey: process.env.privateKey.replace(/\\n/g, '\n'),
+                privateKey: process.env.privateKey ? process.env.privateKey.replace(/\\n/g, '\n') : undefined,
             }),
         });
     }
