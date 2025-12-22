@@ -141,26 +141,35 @@ async function sendFirebaseNotifyRequest(id, body) {
 
 module.exports.registertoken = async (id, FBtokenText) => {
     try {
+        console.log(`[DEBUG TokenRegister] Attempting to register token for user ${id}`);
+        // Log the token safely (first 10 chars)
+        const safeToken = FBtokenText ? FBtokenText.substring(0, 10) + '...' : 'NULL';
+        console.log(`[DEBUG TokenRegister] Token: ${safeToken}`);
+
         const tokenexists = await FBtoken.userHasToken(id)
         if (!tokenexists) {
+            console.log(`[DEBUG TokenRegister] New user/token. Saving...`);
             const newtoken = new FBtoken({
                 id: id, FBtoken: FBtokenText
             })
-            newtoken.save().then(response => {
-                return true
-            })
+            // Use await instead of .then for cleaner logging
+            await newtoken.save();
+            console.log(`[DEBUG TokenRegister] Token SAVED successfully.`);
+            return true;
         }
         else {
             const tokenmatches = await FBtoken.userTokenMatches(
                 id, FBtokenText
             )
             if (tokenmatches) {
+                console.log(`[DEBUG TokenRegister] Token already matches. No update needed.`);
                 return true
             }
             else {
-                FBtoken.findOneAndUpdate({ id: id }, { FBtoken: FBtokenText }, { new: true }).then(response => {
-                    return true
-                })
+                console.log(`[DEBUG TokenRegister] Updating existing user with NEW token...`);
+                await FBtoken.findOneAndUpdate({ id: id }, { FBtoken: FBtokenText }, { new: true });
+                console.log(`[DEBUG TokenRegister] Token UPDATED successfully.`);
+                return true;
             }
         }
     } catch (error) {
