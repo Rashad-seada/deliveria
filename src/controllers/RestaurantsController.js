@@ -462,7 +462,7 @@ module.exports.getRestaurantsByCategory = async (req, res) => {
             super_category: super_category
         };
 
-        if (sub_category && sub_category !== 'null') {
+        if (sub_category && sub_category !== 'null' && sub_category !== 'all' && sub_category !== 'undefined') {
             query.sub_category = sub_category;
         }
 
@@ -893,6 +893,7 @@ module.exports.getRestaurantsWithOffers = async (req, res) => {
                     logo: "$restaurant.logo",
                     photo: "$restaurant.photo",
                     rate: "$restaurant.rate",
+                    rating: "$restaurant.rate", // Explicitly mapping for frontend compatibility
                     open_hour: "$restaurant.open_hour",
                     close_hour: "$restaurant.close_hour",
                     coordinates: "$restaurant.coordinates",
