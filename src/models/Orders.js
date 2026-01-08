@@ -3,32 +3,42 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 require('./Restaurants'); // This ensures the Restaurant model is registered before Order model uses it.
+
+// Order status enum based on state machine
+const ORDER_STATUS = {
+  WAITING_FOR_APPROVAL: 'Waiting for Approval',
+  APPROVED_PREPARING: 'Approved / Preparing',
+  PACKED_READY_FOR_PICKUP: 'Packed / Ready for Pickup',
+  ON_THE_WAY: 'On the Way',
+  DELIVERED: 'Delivered',
+  CANCELED: 'Canceled'
+};
+
 const orderSchema = new Schema(
   {
-    user_id: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    user_id: { type: Schema.Types.ObjectId, ref: "User" }, // Optional for guest orders
+
+    // Guest user support - required when not using registered user
+    guest_user: {
+      name: String,
+      phone: String,
+      email: String
+    },
 
     order_type: { type: String, enum: ["Single", "Multi"], required: true },
 
     order_status: {
       type: String,
-      enum: [
-        "Pending Approval", // بانتظار الموافقة
-        "Preparing",        // جاري التحضير
-        "Ready for Delivery", // جاهز للتسليم
-        "Accepted",         // تم القبول من المندوب
-        "On the way",       // تم الاستلام / في الطريق
-        "Delivered",        // تم التسليم
-        "Completed",        // مكتمل (بعد التسليم)
-        "Canceled"          // ملغي
-      ],
-      default: "Pending Approval"
+      enum: Object.values(ORDER_STATUS),
+      default: ORDER_STATUS.WAITING_FOR_APPROVAL
     },
 
     status_timeline: [
       {
         status: String,
         timestamp: { type: Date, default: Date.now },
-        note: String
+        note: String,
+        updated_by: { type: Schema.Types.ObjectId, ref: "User" }
       }
     ],
 
@@ -40,10 +50,11 @@ const orderSchema = new Schema(
     },
 
     delivery_details: {
-      estimated_time: Number, // بالدقائق
+      estimated_time: Number, // in minutes
       actual_time: Number,
-      distance: Number,       // بالكيلومترات
-      delivery_fee: Number
+      distance: Number,       // in kilometers
+      delivery_fee: Number,
+      estimated_arrival: Date
     },
 
     address: {
@@ -56,6 +67,7 @@ const orderSchema = new Schema(
       }
     },
 
+    // Sub-orders for multi-restaurant orders
     orders: [
       {
         restaurant_id: {
@@ -96,24 +108,73 @@ const orderSchema = new Schema(
         price_of_restaurant: Number,
         status: {
           type: String,
-          default: "Pending Approval"
+          enum: Object.values(ORDER_STATUS),
+          default: ORDER_STATUS.WAITING_FOR_APPROVAL
         },
         notification_sent: { type: Boolean, default: false },
-        cancel_me: Boolean
+        delay_notification_sent: { type: Boolean, default: false },
+        cancel_me: Boolean,
+        response_time: Date // When restaurant responded
       }
     ],
 
+    // Pricing breakdown
     final_price_without_delivery_cost: Number,
     final_delivery_cost: Number,
     final_price: Number,
 
+    // Applied discounts
+    coupon_code: {
+      code: String,
+      discount_percentage: Number,
+      discount_amount: Number,
+      coupon_id: { type: Schema.Types.ObjectId, ref: "CouponCode" }
+    },
+
+    applied_offers: [{
+      offer_id: { type: Schema.Types.ObjectId, ref: "Offer" },
+      discount_amount: Number,
+      description: String
+    }],
+
     delivery_type: String,
     payment_type: String,
 
-    status: { type: String, default: "Pending Approval" },
-    order_id: Number
+    // Cancel reason if order was canceled
+    cancellation_reason: String,
+    canceled_by: { type: String, enum: ["User", "Restaurant", "Admin", "System"] },
+    canceled_at: Date,
+
+    status: { type: String, default: ORDER_STATUS.WAITING_FOR_APPROVAL },
+    order_id: Number,
+
+    // Multi-order specific tracking
+    acceptance_status: {
+      accepted_by_restaurants: [{ type: Schema.Types.ObjectId, ref: "restaurant" }],
+      rejected_by_restaurants: [{ type: Schema.Types.ObjectId, ref: "restaurant" }],
+      first_acceptance_time: Date
+    },
+
+    // For delayed order tracking
+    delay_notifications: {
+      first_delay_notified_at: Date,
+      second_delay_notified_at: Date
+    },
+
+    // Rating and review
+    rating: {
+      score: { type: Number, min: 1, max: 5 },
+      comment: String,
+      rated_at: Date
+    }
   },
-  { timestamps: true } // ← هنا كان الخطأ في الكود السابق
+  { timestamps: true }
 );
+
+// Indexes for better query performance
+orderSchema.index({ user_id: 1, createdAt: -1 });
+orderSchema.index({ order_status: 1 });
+orderSchema.index({ "agent.agent_id": 1 });
+orderSchema.index({ "orders.restaurant_id": 1 });
 
 module.exports = mongoose.model("Order", orderSchema);

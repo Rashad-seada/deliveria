@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const Order = require('../models/Orders');
 const Admin = require('../models/Admin');
 const { sendNotification } = require('../controllers/global');
+const { notifyOrderDelay, notifyRestaurantDelay } = require('../utils/notificationManager');
 
 // This job runs every minute to check the status of pending orders.
 const startOrderProcessingJob = () => {
@@ -10,8 +11,9 @@ const startOrderProcessingJob = () => {
   cron.schedule('* * * * *', async () => {
     const now = new Date();
     // Production Thresholds (in minutes)
-    const NOTIFY_THRESHOLD_MINUTES = 10;
-    const CANCEL_THRESHOLD_MINUTES = 20;
+    const NOTIFY_CUSTOMER_THRESHOLD_MINUTES = 15;
+    const NOTIFY_RESTAURANT_THRESHOLD_MINUTES = 10;
+    const CANCEL_THRESHOLD_MINUTES = 25;
 
     console.log('========================================');
     console.log(`[OrderJobs] Running check at: ${now.toISOString()}`);
@@ -23,15 +25,15 @@ const startOrderProcessingJob = () => {
 
       // Optimization: Only fetch orders that are old enough to potentially need notification or cancellation
       // and match the relevant statuses.
-      const thresholdDate = new Date(now.getTime() - NOTIFY_THRESHOLD_MINUTES * 60000);
+      const notifyThresholdDate = new Date(now.getTime() - NOTIFY_CUSTOMER_THRESHOLD_MINUTES * 60000);
+      const cancelThresholdDate = new Date(now.getTime() - CANCEL_THRESHOLD_MINUTES * 60000);
 
       const pendingOrders = await Order.find({
-        status: { $in: ['Pending Approval', 'Accepted'] },
-        createdAt: { $lte: thresholdDate }
+        order_status: { $in: ['Waiting for Approval', 'Approved / Preparing'] },
+        createdAt: { $lte: notifyThresholdDate }
       });
 
       console.log(`[OrderJobs] Found ${pendingOrders.length} order(s) to process.`);
-      console.log(`[OrderJobs] Criteria: Status=['Pending Approval', 'Accepted'], CreatedAt <= ${thresholdDate.toISOString()}`);
 
       if (pendingOrders.length === 0) {
         console.log('[OrderJobs] No orders need action. Exiting.');
@@ -41,56 +43,67 @@ const startOrderProcessingJob = () => {
 
       for (const order of pendingOrders) {
         console.log(`\n[OrderJobs] Processing Order #${order.order_id} (ID: ${order._id})`);
-        console.log(`[OrderJobs]   - Status: ${order.status}, CreatedAt: ${order.createdAt}`);
+        console.log(`[OrderJobs]   - Status: ${order.order_status}, CreatedAt: ${order.createdAt}`);
 
         const orderTime = new Date(order.createdAt);
         const minutesPassed = (now - orderTime) / (1000 * 60);
         console.log(`[OrderJobs]   - Minutes passed: ${minutesPassed.toFixed(2)}`);
 
-        let allSubOrdersCanceled = true;
+        let allSubOrdersCanceled = false;
 
         for (let i = 0; i < order.orders.length; i++) {
           const subOrder = order.orders[i];
           console.log(`[OrderJobs]   - Sub-order [${i}] status: ${subOrder.status}`);
 
-          // Check 'Pending Approval', 'Accepted', 'Ready for Delivery', and 'Preparing'
-          if (['Pending Approval', 'Accepted', 'Ready for Delivery', 'Preparing'].includes(subOrder.status)) {
+          // Check 'Waiting for Approval', 'Approved / Preparing'
+          if (['Waiting for Approval', 'Approved / Preparing'].includes(subOrder.status)) {
 
             // PRIORITY 1: Cancel if over cancellation threshold
             if (minutesPassed > CANCEL_THRESHOLD_MINUTES) {
               console.log(`[OrderJobs]     -> ACTION: Canceling sub-order ${i} (${minutesPassed.toFixed(2)}m > ${CANCEL_THRESHOLD_MINUTES}m)`);
               subOrder.status = 'Canceled';
+              subOrder.cancel_me = true;
 
-              const msg = `Part of order #${order.order_id} canceled (no response).`;
-              // Use the first admin as the logical sender for system messages
-              const systemSenderId = adminIds.length > 0 ? adminIds[0] : null;
-              sendNotification([order.user_id], systemSenderId, msg);
-
-              // Also add to timeline if possible, but schema structure is on main order usually
+              // Notify customer
+              if (order.user_id) {
+                await notifyOrderDelay(order._id, minutesPassed);
+              }
             }
-            // PRIORITY 2: Notify if over notification threshold (and not yet canceled)
-            else if (minutesPassed > NOTIFY_THRESHOLD_MINUTES && !subOrder.notification_sent) {
-              console.log(`[OrderJobs]     -> ACTION: Notifying admins (${minutesPassed.toFixed(2)}m > ${NOTIFY_THRESHOLD_MINUTES}m)`);
+            // PRIORITY 2: Notify restaurant if over restaurant threshold
+            else if (minutesPassed > NOTIFY_RESTAURANT_THRESHOLD_MINUTES && !subOrder.delay_notification_sent) {
+              console.log(`[OrderJobs]     -> ACTION: Notifying restaurant (${minutesPassed.toFixed(2)}m > ${NOTIFY_RESTAURANT_THRESHOLD_MINUTES}m)`);
 
-              const msg = `Order #${order.order_id} from restaurant ${subOrder.restaurant_id} pending > ${NOTIFY_THRESHOLD_MINUTES}m.`;
-              sendNotification(adminIds, order.user_id, msg);
+              await notifyRestaurantDelay(order._id, subOrder.restaurant_id, minutesPassed);
+              subOrder.delay_notification_sent = true;
+            }
+            // PRIORITY 3: Notify customer if over customer threshold
+            else if (minutesPassed > NOTIFY_CUSTOMER_THRESHOLD_MINUTES && order.delay_notifications?.first_delay_notified_at === undefined) {
+              console.log(`[OrderJobs]     -> ACTION: Notifying customer (${minutesPassed.toFixed(2)}m > ${NOTIFY_CUSTOMER_THRESHOLD_MINUTES}m)`);
 
-              subOrder.notification_sent = true;
+              if (order.user_id) {
+                await notifyOrderDelay(order._id, minutesPassed);
+              }
+
+              if (!order.delay_notifications) {
+                order.delay_notifications = {};
+              }
+              order.delay_notifications.first_delay_notified_at = new Date();
             } else {
               console.log(`[OrderJobs]     -> No action for sub-order ${i} (Wait or already notified).`);
             }
           }
 
           // Re-check status after potential update
-          if (subOrder.status !== 'Canceled') {
-            allSubOrdersCanceled = false;
+          if (subOrder.status === 'Canceled') {
+            allSubOrdersCanceled = true;
           }
         }
 
         // If all sub-orders are canceled, cancel the main order
-        if (allSubOrdersCanceled && order.status !== 'Canceled') {
-          order.status = 'Canceled';
-          order.order_status = 'Canceled'; // Update enum field as well
+        if (allSubOrdersCanceled && order.order_status !== 'Canceled') {
+          order.order_status = 'Canceled';
+          order.canceled_by = 'System';
+          order.canceled_at = new Date();
           order.status_timeline.push({
             status: 'Canceled',
             timestamp: new Date(),

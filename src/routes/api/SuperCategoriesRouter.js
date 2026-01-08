@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// إنشاء المجلد إذا لم يكن موجوداً
+// Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù…Ø¬Ù„Ø¯ Ø¥Ø°Ø§ Ù„Ù… ÙŠÙƒÙ† Ù…ÙˆØ¬ÙˆØ¯Ø§Ù‹
 const uploadDir = './deliveria_upload';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
     }
 });
 
-// تصفية الملفات ليقبل الصور فقط
+// ØªØµÙÙŠØ© Ø§Ù„Ù…Ù„ÙØ§Øª Ù„ÙŠÙ‚Ø¨Ù„ Ø§Ù„ØµÙˆØ± ÙÙ‚Ø·
 const fileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
         cb(null, true);

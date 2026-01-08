@@ -5,6 +5,8 @@ const app = express();
 const port = 8550;
 const mongoose = require("mongoose");
 const router = require("./src/routes/index");
+// Swagger UI
+const swaggerRouter = require("./src/routes/swagger");
 const cors = require("cors");
 const path = require('path');
 const { startOrderProcessingJob } = require("./src/jobs/orderJobs");
@@ -50,6 +52,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 app.use(express.json({ limit: "10mb" })); // Increased limit and consolidated
+
+// Serve Swagger UI at /api-docs
+app.use(swaggerRouter);
 
 app.use(router);
 app.use('/deliveria_upload', express.static(path.join(__dirname, 'deliveria_upload')));

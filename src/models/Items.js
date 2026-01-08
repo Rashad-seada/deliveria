@@ -8,6 +8,11 @@ const itemSchema = new Schema(
             ref: "restaurant",
             required: true
         },
+        branch_id: {
+            type: Schema.Types.ObjectId,
+            ref: "Branch",
+            default: null // Will be used for multi-branch support
+        },
         photo: {
             type: String,
             required: true,
@@ -29,6 +34,21 @@ const itemSchema = new Schema(
         have_option: {
             type: Boolean
         },
+        // Inventory Management
+        quantity: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        low_stock_threshold: {
+            type: Number,
+            default: 5,
+            description: "Minimum quantity before low-stock alert is triggered"
+        },
+        low_stock_alert_sent: {
+            type: Boolean,
+            default: false
+        },
         sizes: [
             {
                 size: {
@@ -47,6 +67,11 @@ const itemSchema = new Schema(
                     type: Number,
                     required: true
                 },
+                quantity: {
+                    type: Number,
+                    default: 0,
+                    min: 0
+                }
             }
         ],
         toppings: [

@@ -1,4 +1,4 @@
-// RestaurantsRouter.js - الكود الكامل (بدون تغييرات)
+// RestaurantsRouter.js - Ø§Ù„ÙƒÙˆØ¯ Ø§Ù„ÙƒØ§Ù…Ù„ (Ø¨Ø¯ÙˆÙ† ØªØºÙŠÙŠØ±Ø§Øª)
 
 const router = require("express").Router();
 const { checkToken } = require("../../auth/token_validation");
@@ -7,7 +7,7 @@ const multer = require('multer');
 
 const upload = multer({ dest: 'uploads/' });
 
-// إنشاء مطعم (Admin)
+// Ø¥Ù†Ø´Ø§Ø¡ Ù…Ø·Ø¹Ù… (Admin)
 router.post(
   "/create",
   checkToken,
@@ -18,7 +18,7 @@ router.post(
   restaurantsController.createRestaurant
 );
 
-// تحديث مطعم
+// ØªØ­Ø¯ÙŠØ« Ù…Ø·Ø¹Ù…
 router.put(
   "/update/:id",
   checkToken,
@@ -29,57 +29,57 @@ router.put(
   restaurantsController.updateRestaurant
 );
 
-// تسجيل الدخول
+// ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„
 router.post("/login", restaurantsController.login);
 
-// جلب جميع المطاعم
+// Ø¬Ù„Ø¨ Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù…Ø·Ø§Ø¹Ù…
 router.get("/all", checkToken, restaurantsController.getAllRestaurants);
 
-// الصفحة الرئيسية
+// Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©
 router.get("/home/:latitude/:longitude", checkToken, restaurantsController.getHomeRestaurants);
 
-// أعلى تقييم (Admin)
+// Ø£Ø¹Ù„Ù‰ ØªÙ‚ÙŠÙŠÙ… (Admin)
 router.get("/all_rated_admin", checkToken, restaurantsController.getRestaurantsByRateAdmin);
 
-// أعلى تقييم (User)
+// Ø£Ø¹Ù„Ù‰ ØªÙ‚ÙŠÙŠÙ… (User)
 router.get("/all_rated/:latitude/:longitude", checkToken, restaurantsController.getRestaurantsByRate);
 
-// بحث
+// Ø¨Ø­Ø«
 router.post("/search/:latitude/:longitude", checkToken, restaurantsController.searchRestaurant);
 router.post("/admin_search", checkToken, restaurantsController.searchRestaurantAdmin);
 
-// حسب الفئة
+// Ø­Ø³Ø¨ Ø§Ù„ÙØ¦Ø©
 router.get("/category/:super_category/:sub_category/:latitude/:longitude", checkToken, restaurantsController.getRestaurantsByCategory);
 router.get("/admin_category/:super_category/:sub_category", checkToken, restaurantsController.getRestaurantsByCategoryAdmin);
 
-// تغيير الحالة
+// ØªØºÙŠÙŠØ± Ø§Ù„Ø­Ø§Ù„Ø©
 router.put("/change_enable/:id", checkToken, restaurantsController.changeShowRestaurant);
 router.put("/change_enable_in_home/:id", checkToken, restaurantsController.changeShowInHomeRestaurant);
 router.put("/change_have_delivery/:id", checkToken, restaurantsController.changeHaveDelivery);
 
-// حذف
+// Ø­Ø°Ù
 router.delete("/delete/:id", checkToken, restaurantsController.deleteRestaurant);
 
-// تقييم
+// ØªÙ‚ÙŠÙŠÙ…
 router.put("/add_review", checkToken, restaurantsController.addReview);
 
-// طلبات المطعم
+// Ø·Ù„Ø¨Ø§Øª Ø§Ù„Ù…Ø·Ø¹Ù…
 router.get("/my_orders", checkToken, restaurantsController.myOrder);
 
-// قبول الطلب
+// Ù‚Ø¨ÙˆÙ„ Ø§Ù„Ø·Ù„Ø¨
 router.put("/accept_order/:orderId/:subOrderId", checkToken, restaurantsController.acceptOrder);
 
-// لوحة التحكم
+// Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…
 router.get("/home_data", checkToken, restaurantsController.getDataOfRestaurant);
 
-// جاهز للاستلام
+// Ø¬Ø§Ù‡Ø² Ù„Ù„Ø§Ø³ØªÙ„Ø§Ù…
 router.put("/ready_for_pickup_order/:orderId/:subOrderId", checkToken, restaurantsController.readyOrderAgent);
 
-// أفضل المبيعات
+// Ø£ÙØ¶Ù„ Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª
 router.get("/best_seller/:id", checkToken, restaurantsController.getBestSellerItems);
 
 // =====================================================
-// OFFERS ENDPOINTS - العروض والخصومات
+// OFFERS ENDPOINTS - Ø§Ù„Ø¹Ø±ÙˆØ¶ ÙˆØ§Ù„Ø®ØµÙˆÙ…Ø§Øª
 // =====================================================
 
 // Get restaurants with active offers (for home page carousel)
