@@ -87,19 +87,43 @@ module.exports.acceptOrder = async (req, res) => {
         const agentId = req.decoded.id;
         const orderId = req.params.id;
 
-        const ongoingOrders = await Order.countDocuments({
-            "agent.agent_id": agentId,
-            status: { $nin: ["Completed", "Canceled", "Delivered"] }
-        });
-
-        if (ongoingOrders >= 3) {
-            return res.status(400).json({ message: "You can only have a maximum of 3 ongoing orders." });
-        }
-
         const order = await Order.findById(orderId);
 
         if (!order) {
             return res.status(404).json({ message: "Order not found." });
+        }
+
+        // Fetch active orders for this agent to validate limits
+        const ongoingOrdersList = await Order.find({
+            "agent.agent_id": agentId,
+            status: { $nin: ["Completed", "Canceled", "Delivered"] }
+        }).select('order_type');
+
+        const currentSingle = ongoingOrdersList.filter(o => o.order_type === 'Single').length;
+        const currentMulti = ongoingOrdersList.filter(o => o.order_type === 'Multi').length;
+        const incomingType = order.order_type || (order.orders.length > 1 ? 'Multi' : 'Single'); // Fallback if type missing
+
+        let allowed = false;
+
+        // Rules:
+        // 1. Single Orders: Max 3
+        // 2. Multi Orders: Max 2
+        // 3. Mixed Orders: Max 2 Single + 1 Multi
+
+        if (incomingType === 'Single') {
+            // Incoming is Single
+            if (currentMulti === 0 && currentSingle < 3) allowed = true;      // 0M, <3S -> OK
+            else if (currentMulti === 1 && currentSingle < 2) allowed = true; // 1M, <2S -> OK (Mixed limit)
+        } else {
+            // Incoming is Multi
+            if (currentMulti === 0 && currentSingle <= 2) allowed = true;     // 0M, <=2S -> OK (Mixed limit allows 1M+2S)
+            else if (currentMulti === 1 && currentSingle === 0) allowed = true; // 1M, 0S -> OK (Max 2 Multi)
+        }
+
+        if (!allowed) {
+            return res.status(400).json({
+                message: `Order limit reached. Current: ${currentSingle} Single, ${currentMulti} Multi. Rules: Max 3 Single, Max 2 Multi, or Mixed (2 Single + 1 Multi).`
+            });
         }
 
         if (order.agent && order.agent.agent_id) {

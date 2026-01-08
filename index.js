@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const app = express();
 const port = 8550;
@@ -6,14 +8,23 @@ const router = require("./src/routes/index");
 const cors = require("cors");
 const path = require('path');
 const { startOrderProcessingJob } = require("./src/jobs/orderJobs");
-require("dotenv").config();
 
 const connectDB = async () => {
   try {
+    // Debug: Log environment variable status
+    if (!process.env.MONGO_URL) {
+      console.error("ERROR: MONGO_URL environment variable is not defined!");
+      process.exit(1);
+    }
+    
+    // Debug: Log masked connection string to verify it's being read
+    const maskedUrl = process.env.MONGO_URL.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+    console.log("Attempting to connect to MongoDB:", maskedUrl);
+    
     const conn = await mongoose.connect(process.env.MONGO_URL);
     console.log("MongoDB connected: ", conn.connection.host);
   } catch (error) {
-    console.log(error);
+    console.error("MongoDB connection error:", error.message);
     process.exit(1);
   }
 };
