@@ -14,6 +14,7 @@ const { startOrderTimers } = require("./DeliveryController");
 const { setTimeout } = require('timers/promises');
 const mongoose = require("mongoose");
 const Order = require("../models/Orders");
+const Item = require("../models/Items");
 
 // دالة استخراج الإحداثيات من أي رابط Google Maps
 function extractCoordsFromFinalUrl(finalUrl) {
@@ -213,7 +214,7 @@ module.exports.getAllRestaurants = async (req, res) => {
 module.exports.getHomeRestaurants = async (req, res) => {
     try {
         let { latitude, longitude } = req.params;
-        
+
         if (!req.decoded) {
             return res.status(401).json({ message: "Unauthorized" });
         }
@@ -230,14 +231,14 @@ module.exports.getHomeRestaurants = async (req, res) => {
                 }
             }
         }
-        
+
         if (latitude === "0" || longitude === "0") {
             return res.status(400).json({ message: "Location required" });
         }
 
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
-        
+
         if (isNaN(userLat) || isNaN(userLon)) {
             return res.status(400).json({ message: "Invalid coordinates" });
         }
@@ -253,9 +254,9 @@ module.exports.getHomeRestaurants = async (req, res) => {
                     return null;
                 }
                 const distance = calculateDistance(userLat, userLon, r.coordinates.latitude, r.coordinates.longitude);
-                return { 
-                    ...r.toObject(), 
-                    is_open: checkIsOpen(r.open_hour, r.close_hour), 
+                return {
+                    ...r.toObject(),
+                    is_open: checkIsOpen(r.open_hour, r.close_hour),
                     is_nearby: distance <= 10,
                     distance: distance
                 };
@@ -293,7 +294,7 @@ module.exports.getRestaurantsByRateAdmin = async (req, res) => {
 module.exports.getRestaurantsByRate = async (req, res) => {
     try {
         let { latitude, longitude } = req.params;
-        
+
         if (!req.decoded) {
             return res.status(401).json({ message: "Unauthorized" });
         }
@@ -310,14 +311,14 @@ module.exports.getRestaurantsByRate = async (req, res) => {
                 }
             }
         }
-        
+
         if (latitude === "0" || longitude === "0") {
             return res.status(400).json({ message: "Location required" });
         }
 
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
-        
+
         if (isNaN(userLat) || isNaN(userLon)) {
             return res.status(400).json({ message: "Invalid coordinates" });
         }
@@ -334,9 +335,9 @@ module.exports.getRestaurantsByRate = async (req, res) => {
                     return null;
                 }
                 const distance = calculateDistance(userLat, userLon, r.coordinates.latitude, r.coordinates.longitude);
-                return { 
-                    ...r.toObject(), 
-                    is_open: checkIsOpen(r.open_hour, r.close_hour), 
+                return {
+                    ...r.toObject(),
+                    is_open: checkIsOpen(r.open_hour, r.close_hour),
                     is_nearby: distance <= 10,
                     distance: distance
                 };
@@ -366,21 +367,21 @@ module.exports.searchRestaurant = async (req, res) => {
 
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
-        
+
         if (isNaN(userLat) || isNaN(userLon)) {
             return res.status(400).json({ message: "Invalid coordinates" });
         }
 
-        const restaurants = await Restaurant.find({ 
+        const restaurants = await Restaurant.find({
             is_show: true,
             $or: [
                 { name: { $regex: search_text, $options: 'i' } },
                 { about_us: { $regex: search_text, $options: 'i' } }
             ]
         })
-        .populate({ path: 'super_category', select: 'name_en name_ar logo' })
-        .populate({ path: 'sub_category', select: 'name_en name_ar' })
-        .select(not_select.join(' '));
+            .populate({ path: 'super_category', select: 'name_en name_ar logo' })
+            .populate({ path: 'sub_category', select: 'name_en name_ar' })
+            .select(not_select.join(' '));
 
         const result = restaurants
             .map(r => {
@@ -388,9 +389,9 @@ module.exports.searchRestaurant = async (req, res) => {
                     return null;
                 }
                 const distance = calculateDistance(userLat, userLon, r.coordinates.latitude, r.coordinates.longitude);
-                return { 
-                    ...r.toObject(), 
-                    is_open: checkIsOpen(r.open_hour, r.close_hour), 
+                return {
+                    ...r.toObject(),
+                    is_open: checkIsOpen(r.open_hour, r.close_hour),
                     is_nearby: distance <= 10,
                     distance: distance
                 };
@@ -424,9 +425,9 @@ module.exports.searchRestaurantAdmin = async (req, res) => {
                 { about_us: { $regex: search_text, $options: 'i' } }
             ]
         })
-        .populate({ path: 'super_category', select: 'name_en name_ar logo' })
-        .populate({ path: 'sub_category', select: 'name_en name_ar' })
-        .select(not_select.join(' '));
+            .populate({ path: 'super_category', select: 'name_en name_ar logo' })
+            .populate({ path: 'sub_category', select: 'name_en name_ar' })
+            .select(not_select.join(' '));
 
         const result = restaurants.map(r => ({
             ...r.toObject(),
@@ -444,19 +445,19 @@ module.exports.searchRestaurantAdmin = async (req, res) => {
 module.exports.getRestaurantsByCategory = async (req, res) => {
     try {
         const { super_category, sub_category, latitude, longitude } = req.params;
-        
+
         if (!req.decoded) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
-        
+
         if (isNaN(userLat) || isNaN(userLon)) {
             return res.status(400).json({ message: "Invalid coordinates" });
         }
 
-        const query = { 
+        const query = {
             is_show: true,
             super_category: super_category
         };
@@ -476,9 +477,9 @@ module.exports.getRestaurantsByCategory = async (req, res) => {
                     return null;
                 }
                 const distance = calculateDistance(userLat, userLon, r.coordinates.latitude, r.coordinates.longitude);
-                return { 
-                    ...r.toObject(), 
-                    is_open: checkIsOpen(r.open_hour, r.close_hour), 
+                return {
+                    ...r.toObject(),
+                    is_open: checkIsOpen(r.open_hour, r.close_hour),
                     is_nearby: distance <= 10,
                     distance: distance
                 };
@@ -496,12 +497,12 @@ module.exports.getRestaurantsByCategory = async (req, res) => {
 module.exports.getRestaurantsByCategoryAdmin = async (req, res) => {
     try {
         const { super_category, sub_category } = req.params;
-        
+
         if (!req.decoded) {
             return res.status(401).json({ message: "Unauthorized" });
         }
 
-        const query = { 
+        const query = {
             super_category: super_category
         };
 
@@ -535,8 +536,8 @@ module.exports.changeShowRestaurant = async (req, res) => {
         restaurant.is_show = !restaurant.is_show;
         await restaurant.save();
 
-        return res.status(200).json({ 
-            message: `Restaurant ${restaurant.is_show ? 'shown' : 'hidden'} successfully` 
+        return res.status(200).json({
+            message: `Restaurant ${restaurant.is_show ? 'shown' : 'hidden'} successfully`
         });
     } catch (error) {
         console.error("changeShowRestaurant error:", error);
@@ -553,8 +554,8 @@ module.exports.changeShowInHomeRestaurant = async (req, res) => {
         restaurant.is_show_in_home = !restaurant.is_show_in_home;
         await restaurant.save();
 
-        return res.status(200).json({ 
-            message: `Restaurant ${restaurant.is_show_in_home ? 'shown in home' : 'hidden from home'} successfully` 
+        return res.status(200).json({
+            message: `Restaurant ${restaurant.is_show_in_home ? 'shown in home' : 'hidden from home'} successfully`
         });
     } catch (error) {
         console.error("changeShowInHomeRestaurant error:", error);
@@ -571,8 +572,8 @@ module.exports.changeHaveDelivery = async (req, res) => {
         restaurant.have_delivery = !restaurant.have_delivery;
         await restaurant.save();
 
-        return res.status(200).json({ 
-            message: `Delivery ${restaurant.have_delivery ? 'enabled' : 'disabled'} successfully` 
+        return res.status(200).json({
+            message: `Delivery ${restaurant.have_delivery ? 'enabled' : 'disabled'} successfully`
         });
     } catch (error) {
         console.error("changeHaveDelivery error:", error);
@@ -597,7 +598,7 @@ module.exports.deleteRestaurant = async (req, res) => {
 module.exports.addReview = async (req, res) => {
     try {
         const { restaurant_id, rate, review } = req.body;
-        
+
         if (!restaurant_id || !rate) {
             return res.status(400).json({ message: "Restaurant ID and rate are required" });
         }
@@ -618,7 +619,7 @@ module.exports.addReview = async (req, res) => {
         };
 
         restaurant.reviews.push(newReview);
-        
+
         // تحديث متوسط التقييم
         const totalRate = restaurant.reviews.reduce((sum, rev) => sum + rev.rate, 0);
         restaurant.rate = totalRate / restaurant.reviews.length;
@@ -626,7 +627,7 @@ module.exports.addReview = async (req, res) => {
 
         await restaurant.save();
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "Review added successfully",
             new_rate: restaurant.rate
         });
@@ -725,7 +726,7 @@ module.exports.readyOrderAgent = async (req, res) => {
         }
 
         if (subOrder.status !== "Preparing") {
-             return res.status(400).json({ message: `Cannot mark order as ready, status is already "${subOrder.status}"` });
+            return res.status(400).json({ message: `Cannot mark order as ready, status is already "${subOrder.status}"` });
         }
 
         // Update the specific sub-order status
@@ -738,10 +739,10 @@ module.exports.readyOrderAgent = async (req, res) => {
             // If all are ready, update the main order status
             order.status = "Ready for Delivery";
             order.order_status = "Ready for Delivery";
-            
+
             // Notify the user that the entire order is ready for pickup
             sendNotification([order.user_id], restaurantId, `Your order #${order.order_id} is fully ready for pickup.`);
-            
+
             // Start the timer to notify admins if the order is not accepted by an agent soon
             startOrderTimers(order);
         } else {
@@ -802,5 +803,293 @@ module.exports.getBestSellerItems = async (req, res) => {
     } catch (error) {
         console.error("getBestSellerItems error:", error);
         return res.status(500).json({ message: "Server error" });
+    }
+};
+
+// =====================================================
+// OFFERS ENDPOINTS - العروض والخصومات
+// =====================================================
+
+/**
+ * Helper function to check if an item has active offers
+ * An item has an active offer if: offer > 0 && offer < 100 for any of its sizes
+ */
+const itemHasActiveOffer = (item) => {
+    if (!item.sizes || !Array.isArray(item.sizes)) return false;
+    return item.sizes.some(size => size.offer > 0 && size.offer < 100);
+};
+
+/**
+ * GET /restaurants/with_offers
+ * Get list of restaurants that have at least one item with an active offer
+ */
+module.exports.getRestaurantsWithOffers = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const { latitude, longitude } = req.params;
+        const limit = parseInt(req.query.limit) || 10;
+
+        const userLat = parseFloat(latitude);
+        const userLon = parseFloat(longitude);
+
+        if (isNaN(userLat) || isNaN(userLon)) {
+            return res.status(400).json({ message: "Invalid coordinates. lat and long are required." });
+        }
+
+        // Aggregation pipeline to find restaurants with active offers
+        const restaurantsWithOffers = await Item.aggregate([
+            // Step 1: Match items that have active offers and are enabled
+            {
+                $match: {
+                    enable: { $ne: false },
+                    "sizes.offer": { $gt: 0, $lt: 100 }
+                }
+            },
+            // Step 2: Unwind sizes to calculate max discount
+            { $unwind: "$sizes" },
+            // Step 3: Filter only sizes with active offers
+            {
+                $match: {
+                    "sizes.offer": { $gt: 0, $lt: 100 }
+                }
+            },
+            // Step 4: Group by restaurant to get offers count and max discount
+            {
+                $group: {
+                    _id: "$restaurant_id",
+                    offers_count: { $sum: 1 },
+                    max_discount: { $max: "$sizes.offer" }
+                }
+            },
+            // Step 5: Lookup restaurant details
+            {
+                $lookup: {
+                    from: "restaurants",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "restaurant"
+                }
+            },
+            // Step 6: Unwind restaurant (should be single document)
+            { $unwind: "$restaurant" },
+            // Step 7: Filter out closed/hidden restaurants
+            {
+                $match: {
+                    "restaurant.is_show": true
+                }
+            },
+            // Step 8: Sort by offers_count descending
+            { $sort: { offers_count: -1 } },
+            // Step 9: Limit results
+            { $limit: limit },
+            // Step 10: Project final shape
+            {
+                $project: {
+                    _id: "$restaurant._id",
+                    name: "$restaurant.name",
+                    logo: "$restaurant.logo",
+                    photo: "$restaurant.photo",
+                    rate: "$restaurant.rate",
+                    open_hour: "$restaurant.open_hour",
+                    close_hour: "$restaurant.close_hour",
+                    coordinates: "$restaurant.coordinates",
+                    delivery_cost: "$restaurant.delivery_cost",
+                    estimated_time: "$restaurant.estimated_time",
+                    have_delivery: "$restaurant.have_delivery",
+                    has_offers: { $literal: true },
+                    offers_count: 1,
+                    max_discount: 1
+                }
+            }
+        ]);
+
+        // Filter by distance and add is_open status
+        const result = restaurantsWithOffers
+            .map(r => {
+                if (!r.coordinates || !r.coordinates.latitude || !r.coordinates.longitude) {
+                    return null;
+                }
+                const distance = calculateDistance(userLat, userLon, r.coordinates.latitude, r.coordinates.longitude);
+                return {
+                    ...r,
+                    is_open: checkIsOpen(r.open_hour, r.close_hour),
+                    is_nearby: distance <= 10,
+                    distance: distance
+                };
+            })
+            .filter(r => r !== null && r.is_nearby);
+
+        return res.status(200).json({
+            success: true,
+            restaurants: result
+        });
+
+    } catch (error) {
+        console.error("getRestaurantsWithOffers error:", error);
+        return res.status(500).json({ success: false, message: "Server error", error: error.message });
+    }
+};
+
+/**
+ * GET /restaurants/:id/offers
+ * Get all items with active offers for a specific restaurant
+ */
+module.exports.getRestaurantOffers = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const restaurantId = req.params.id;
+
+        // Validate restaurant ID
+        if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+            return res.status(400).json({ success: false, message: "Invalid restaurant ID" });
+        }
+
+        // Get restaurant info
+        const restaurant = await Restaurant.findById(restaurantId)
+            .select('_id name');
+
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+
+        // Find all enabled items with active offers for this restaurant
+        const items = await Item.find({
+            restaurant_id: restaurantId,
+            enable: { $ne: false }
+        });
+
+        // Filter to only items that have at least one size with active offer
+        const itemsWithOffers = items.filter(item => itemHasActiveOffer(item));
+
+        // For each item, filter sizes to only show those with offers (optional - keeping all sizes for context)
+        const enrichedItems = itemsWithOffers.map(item => {
+            const itemObj = item.toObject();
+            // Add a flag to indicate which sizes have offers
+            itemObj.sizes = itemObj.sizes.map(size => ({
+                ...size,
+                has_offer: size.offer > 0 && size.offer < 100
+            }));
+            return itemObj;
+        });
+
+        return res.status(200).json({
+            success: true,
+            restaurant: {
+                _id: restaurant._id,
+                name: restaurant.name,
+                has_offers: itemsWithOffers.length > 0
+            },
+            items: enrichedItems
+        });
+
+    } catch (error) {
+        console.error("getRestaurantOffers error:", error);
+        return res.status(500).json({ success: false, message: "Server error", error: error.message });
+    }
+};
+
+/**
+ * GET /restaurants/:id (Helper function to check if restaurant has offers)
+ * This can be used to add has_offers to existing restaurant detail endpoints
+ */
+module.exports.checkRestaurantHasOffers = async (restaurantId) => {
+    try {
+        const itemWithOffer = await Item.findOne({
+            restaurant_id: restaurantId,
+            enable: { $ne: false },
+            "sizes.offer": { $gt: 0, $lt: 100 }
+        });
+        return !!itemWithOffer;
+    } catch (error) {
+        console.error("checkRestaurantHasOffers error:", error);
+        return false;
+    }
+};
+
+/**
+ * GET /restaurants/details/:id
+ * Get restaurant details with has_offers field included
+ */
+module.exports.getRestaurantDetails = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const restaurantId = req.params.id;
+
+        // Validate restaurant ID
+        if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+            return res.status(400).json({ success: false, message: "Invalid restaurant ID" });
+        }
+
+        const restaurant = await Restaurant.findById(restaurantId)
+            .populate({ path: 'super_category', select: 'name_en name_ar logo' })
+            .populate({ path: 'sub_category', select: 'name_en name_ar' })
+            .select(not_select.join(' '));
+
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+
+        // Check if restaurant has any items with offers
+        const hasOffers = await module.exports.checkRestaurantHasOffers(restaurantId);
+
+        // Get offers count and max discount if has offers
+        let offersInfo = { offers_count: 0, max_discount: 0 };
+        if (hasOffers) {
+            const offerStats = await Item.aggregate([
+                {
+                    $match: {
+                        restaurant_id: new mongoose.Types.ObjectId(restaurantId),
+                        enable: { $ne: false },
+                        "sizes.offer": { $gt: 0, $lt: 100 }
+                    }
+                },
+                { $unwind: "$sizes" },
+                {
+                    $match: {
+                        "sizes.offer": { $gt: 0, $lt: 100 }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        offers_count: { $sum: 1 },
+                        max_discount: { $max: "$sizes.offer" }
+                    }
+                }
+            ]);
+
+            if (offerStats.length > 0) {
+                offersInfo = {
+                    offers_count: offerStats[0].offers_count,
+                    max_discount: offerStats[0].max_discount
+                };
+            }
+        }
+
+        const result = {
+            ...restaurant.toObject(),
+            is_open: checkIsOpen(restaurant.open_hour, restaurant.close_hour),
+            has_offers: hasOffers,
+            offers_count: offersInfo.offers_count,
+            max_discount: offersInfo.max_discount
+        };
+
+        return res.status(200).json({
+            success: true,
+            restaurant: result
+        });
+
+    } catch (error) {
+        console.error("getRestaurantDetails error:", error);
+        return res.status(500).json({ success: false, message: "Server error", error: error.message });
     }
 };

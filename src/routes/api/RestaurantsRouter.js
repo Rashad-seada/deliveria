@@ -78,4 +78,17 @@ router.put("/ready_for_pickup_order/:orderId/:subOrderId", checkToken, restauran
 // أفضل المبيعات
 router.get("/best_seller/:id", checkToken, restaurantsController.getBestSellerItems);
 
+// =====================================================
+// OFFERS ENDPOINTS - العروض والخصومات
+// =====================================================
+
+// Get restaurants with active offers (for home page carousel)
+router.get("/with_offers/:latitude/:longitude", checkToken, restaurantsController.getRestaurantsWithOffers);
+
+// Get offers for a specific restaurant (for "Offers" tab in menu)
+router.get("/:id/offers", checkToken, restaurantsController.getRestaurantOffers);
+
+// Get restaurant details with has_offers field
+router.get("/details/:id", checkToken, restaurantsController.getRestaurantDetails);
+
 module.exports = router;
