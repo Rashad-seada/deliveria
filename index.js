@@ -71,6 +71,10 @@ app.use((err, req, res, next) => {
 connectDB().then(() => {
   app.listen(port, () => {
     console.log(`server is starting at port ${port}`);
+    // Print Swagger access URLs
+    const swaggerBase = process.env.SWAGGER_BASE_URL || `http://localhost:${port}`;
+    console.log(`Swagger UI: ${swaggerBase}/api-docs`);
+    console.log(`Swagger JSON: ${swaggerBase}/swagger.json`);
     // Start the cron job for processing orders
     startOrderProcessingJob();
   });

@@ -20,7 +20,9 @@ const options = {
     ]
   },
   apis: [
-    path.join(__dirname, 'api', '*.js'),
+    // Scan all JS files under src (controllers, routes, models, etc.)
+    path.join(__dirname, '..', '**', '*.js'),
+    // Keep an explicit controllers pattern for clarity
     path.join(__dirname, '..', 'controllers', '*.js')
   ]
 };
