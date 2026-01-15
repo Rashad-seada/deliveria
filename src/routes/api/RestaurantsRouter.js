@@ -78,6 +78,9 @@ router.put("/ready_for_pickup_order/:orderId/:subOrderId", checkToken, restauran
 // Ø£ÙØ¶Ù„ Ø§Ù„Ù…Ø¨ÙŠØ¹Ø§Øª
 router.get("/best_seller/:id", checkToken, restaurantsController.getBestSellerItems);
 
+// أفضل المطاعم مبيعاً - Top 10 Best Selling Restaurants
+router.get("/best_sellers/:latitude/:longitude", checkToken, restaurantsController.getBestSellerRestaurants);
+
 // =====================================================
 // OFFERS ENDPOINTS - Ø§Ù„Ø¹Ø±ÙˆØ¶ ÙˆØ§Ù„Ø®ØµÙˆÙ…Ø§Øª
 // =====================================================

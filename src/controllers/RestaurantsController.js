@@ -790,7 +790,7 @@ module.exports.getDataOfRestaurant = async (req, res) => {
     }
 };
 
-// أفضل المبيعات
+// أفضل المبيعات - Best Seller Items for a specific restaurant
 module.exports.getBestSellerItems = async (req, res) => {
     try {
         if (!req.decoded) {
@@ -803,6 +803,158 @@ module.exports.getBestSellerItems = async (req, res) => {
     } catch (error) {
         console.error("getBestSellerItems error:", error);
         return res.status(500).json({ message: "Server error" });
+    }
+};
+
+/**
+ * GET /restaurants/best_sellers/:latitude/:longitude
+ * Get top 10 best-selling restaurants based on completed order count
+ * 
+ * Query Parameters:
+ *   - limit (optional): Number of restaurants to return, default 10
+ * 
+ * Response:
+ * {
+ *   "success": true,
+ *   "restaurants": [
+ *     {
+ *       "_id": "abc123",
+ *       "name": "Restaurant Name",
+ *       "logo": "uploads/logo.jpg",
+ *       "photo": "uploads/photo.jpg",
+ *       "rate": 4.5,
+ *       "rating": 4.5,
+ *       "is_open": true,
+ *       "distance": 2.5,
+ *       "total_orders": 150,
+ *       "rank": 1
+ *     }
+ *   ]
+ * }
+ */
+module.exports.getBestSellerRestaurants = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        const { latitude, longitude } = req.params;
+        const limit = parseInt(req.query.limit) || 10;
+
+        const userLat = parseFloat(latitude);
+        const userLon = parseFloat(longitude);
+
+        if (isNaN(userLat) || isNaN(userLon)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid coordinates. latitude and longitude are required."
+            });
+        }
+
+        // Aggregation pipeline to find restaurants with most completed orders
+        const bestSellers = await Order.aggregate([
+            // Step 1: Match only completed/delivered orders
+            {
+                $match: {
+                    status: { $in: ["Completed", "Delivered"] }
+                }
+            },
+            // Step 2: Unwind the orders array to get individual restaurant orders
+            { $unwind: "$orders" },
+            // Step 3: Filter out canceled sub-orders
+            {
+                $match: {
+                    "orders.status": { $nin: ["Canceled"] }
+                }
+            },
+            // Step 4: Group by restaurant_id and count orders
+            {
+                $group: {
+                    _id: "$orders.restaurant_id",
+                    total_orders: { $sum: 1 },
+                    total_revenue: { $sum: "$orders.price_of_restaurant" }
+                }
+            },
+            // Step 5: Sort by total orders descending
+            { $sort: { total_orders: -1 } },
+            // Step 6: Limit to top N
+            { $limit: limit * 2 }, // Get more to filter by distance later
+            // Step 7: Lookup restaurant details
+            {
+                $lookup: {
+                    from: "restaurants",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "restaurant"
+                }
+            },
+            // Step 8: Unwind restaurant
+            { $unwind: "$restaurant" },
+            // Step 9: Filter only visible restaurants
+            {
+                $match: {
+                    "restaurant.is_show": true
+                }
+            },
+            // Step 10: Project final shape
+            {
+                $project: {
+                    _id: "$restaurant._id",
+                    name: "$restaurant.name",
+                    logo: "$restaurant.logo",
+                    photo: "$restaurant.photo",
+                    rate: "$restaurant.rate",
+                    rating: "$restaurant.rate",
+                    open_hour: "$restaurant.open_hour",
+                    close_hour: "$restaurant.close_hour",
+                    coordinates: "$restaurant.coordinates",
+                    delivery_cost: "$restaurant.delivery_cost",
+                    estimated_time: "$restaurant.estimated_time",
+                    have_delivery: "$restaurant.have_delivery",
+                    about_us: "$restaurant.about_us",
+                    total_orders: 1,
+                    total_revenue: 1
+                }
+            }
+        ]);
+
+        // Filter by distance, add is_open status, and add rank
+        let rank = 0;
+        const result = bestSellers
+            .map(r => {
+                if (!r.coordinates || !r.coordinates.latitude || !r.coordinates.longitude) {
+                    return null;
+                }
+                const distance = calculateDistance(userLat, userLon, r.coordinates.latitude, r.coordinates.longitude);
+                if (distance > 10) return null; // Filter out restaurants beyond 10km
+
+                return {
+                    ...r,
+                    is_open: checkIsOpen(r.open_hour, r.close_hour),
+                    distance: Math.round(distance * 10) / 10, // Round to 1 decimal
+                    is_nearby: true
+                };
+            })
+            .filter(r => r !== null)
+            .slice(0, limit) // Limit after distance filtering
+            .map(r => {
+                rank++;
+                return { ...r, rank };
+            });
+
+        return res.status(200).json({
+            success: true,
+            count: result.length,
+            restaurants: result
+        });
+
+    } catch (error) {
+        console.error("getBestSellerRestaurants error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message
+        });
     }
 };
 
