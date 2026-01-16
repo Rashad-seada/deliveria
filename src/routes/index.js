@@ -29,6 +29,7 @@ const superCategoriesRouter = require("./api/SuperCategoriesRouter");
 const subCategoriesRouter = require("./api/SubCategoriesRouter");
 const systemRouter = require("./api/SystemRouter");
 const usersRouter = require("./api/UsersRouter");
+const zonesRouter = require("./api/ZonesRouter");
 
 // Use all routers, sorted alphabetically
 router.use('/address', addressRouter);
@@ -58,5 +59,6 @@ router.use('/super_categories', superCategoriesRouter);
 router.use('/sub_categories', subCategoriesRouter);
 router.use('/system', systemRouter);
 router.use('/users', usersRouter);
+router.use('/zones', zonesRouter);
 
 module.exports = router;
