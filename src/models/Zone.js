@@ -6,8 +6,7 @@ const zoneSchema = new Schema(
         name: {
             type: String,
             required: true,
-            unique: true,
-            description: "Zone name (e.g., Downtown, Suburb, etc)"
+            unique: true
         },
         description: {
             type: String,
@@ -16,18 +15,15 @@ const zoneSchema = new Schema(
         type: {
             type: String,
             enum: ["circular", "polygon"],
-            required: true,
-            description: "Zone shape type"
+            required: true
         },
         // For circular zones
         center: {
             latitude: Number,
-            longitude: Number,
-            description: "Center coordinates for circular zone"
+            longitude: Number
         },
         radius: {
-            type: Number,
-            description: "Radius in kilometers for circular zone"
+            type: Number
         },
         // For polygon zones
         polygon: [{
@@ -51,13 +47,11 @@ const zoneSchema = new Schema(
         }],
         delivery_fee_multiplier: {
             type: Number,
-            default: 1.0,
-            description: "Multiplier for delivery fee in this zone"
+            default: 1.0
         },
         is_priority: {
             type: Boolean,
-            default: false,
-            description: "Priority zone for faster delivery"
+            default: false
         }
     },
     { timestamps: true }
