@@ -8,5 +8,7 @@ router.get("/id/:id", checkToken, orderController.getOrderById);
 router.post("/add", checkToken, orderController.createOrder);
 router.put("/reorder/:id", checkToken, orderController.reorder);
 
+// Admin commission statistics
+router.get("/commission-stats", checkToken, orderController.getCommissionStats);
 
 module.exports = router;

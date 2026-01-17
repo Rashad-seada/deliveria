@@ -106,6 +106,10 @@ const orderSchema = new Schema(
           }
         ],
         price_of_restaurant: Number,
+        // Commission tracking per sub-order
+        commission_percentage: { type: Number, default: 0 },
+        commission_amount: { type: Number, default: 0 },
+        restaurant_net_amount: { type: Number, default: 0 }, // Amount restaurant receives after commission
         status: {
           type: String,
           enum: Object.values(ORDER_STATUS),
@@ -122,6 +126,10 @@ const orderSchema = new Schema(
     final_price_without_delivery_cost: Number,
     final_delivery_cost: Number,
     final_price: Number,
+
+    // Total commission for the entire order
+    total_commission_amount: { type: Number, default: 0 },
+    total_restaurant_net: { type: Number, default: 0 }, // Sum of all restaurant net amounts
 
     // Applied discounts
     coupon_code: {

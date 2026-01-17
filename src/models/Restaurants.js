@@ -115,33 +115,35 @@ const restaurantSchema = new Schema(
         // New fields for additional features
         discount_rate: {
             type: Number,
+            default: 0
+        },
+        commission_percentage: {
+            type: Number,
             default: 0,
-            description: "Default discount percentage for restaurant"
+            min: 0,
+            max: 100
         },
         preparation_time: {
             type: Number,
-            default: 20,
-            description: "Average preparation time in minutes"
+            default: 15,
+            min: 0
         },
         delivery_time: {
             type: Number,
             default: 30,
-            description: "Average delivery time in minutes"
+            min: 0
         },
         is_open: {
             type: Boolean,
-            default: true,
-            description: "Is restaurant currently open"
+            default: true
         },
         allows_guest_orders: {
             type: Boolean,
-            default: true,
-            description: "Allow guest users to place orders"
+            default: true
         },
         minimum_order_value: {
             type: Number,
-            default: 0,
-            description: "Minimum order value in EGP"
+            default: 0
         },
         status: {
             type: String,

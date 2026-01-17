@@ -92,6 +92,19 @@ module.exports.createRestaurant = async (req, res) => {
         if (!password) return res.status(400).json({ message: "Password is required" });
         const hashedPassword = hashSync(password, genSaltSync(10));
 
+        // Validate commission_percentage
+        let commissionPercentage = parseFloat(body.commission_percentage) || 0;
+        if (commissionPercentage < 0) commissionPercentage = 0;
+        if (commissionPercentage > 100) commissionPercentage = 100;
+
+        // Validate preparation_time
+        let preparationTime = parseInt(body.preparation_time) || 15;
+        if (preparationTime < 0) preparationTime = 15;
+
+        // Validate delivery_time
+        let deliveryTime = parseInt(body.delivery_time) || 30;
+        if (deliveryTime < 0) deliveryTime = 30;
+
         const restaurant = new Restaurant({
             photo: req.files.photo[0].path,
             logo: req.files.logo[0].path,
@@ -114,7 +127,10 @@ module.exports.createRestaurant = async (req, res) => {
             have_delivery: body.have_delivery || false,
             is_show: true,
             is_show_in_home: true,
-            estimated_time: body.estimated_time || 30
+            estimated_time: body.estimated_time || 30,
+            commission_percentage: commissionPercentage,
+            preparation_time: preparationTime,
+            delivery_time: deliveryTime
         });
 
         await restaurant.save();
@@ -151,6 +167,36 @@ module.exports.updateRestaurant = async (req, res) => {
             open_hour: req.body.open_hour?.trim() || restaurant.open_hour,
             close_hour: req.body.close_hour?.trim() || restaurant.close_hour,
         };
+
+        // Handle new admin fields (only admin can update these)
+        if (isAdmin) {
+            if (req.body.commission_percentage !== undefined) {
+                let commission = parseFloat(req.body.commission_percentage);
+                if (!isNaN(commission)) {
+                    if (commission < 0) commission = 0;
+                    if (commission > 100) commission = 100;
+                    updateData.commission_percentage = commission;
+                }
+            }
+            if (req.body.preparation_time !== undefined) {
+                let prepTime = parseInt(req.body.preparation_time);
+                if (!isNaN(prepTime) && prepTime > 0) {
+                    updateData.preparation_time = prepTime;
+                }
+            }
+            if (req.body.delivery_time !== undefined) {
+                let delTime = parseInt(req.body.delivery_time);
+                if (!isNaN(delTime) && delTime > 0) {
+                    updateData.delivery_time = delTime;
+                }
+            }
+            if (req.body.delivery_cost !== undefined) {
+                updateData.delivery_cost = parseFloat(req.body.delivery_cost) || restaurant.delivery_cost;
+            }
+            if (req.body.estimated_time !== undefined) {
+                updateData.estimated_time = parseInt(req.body.estimated_time) || restaurant.estimated_time;
+            }
+        }
 
         if (req.files?.logo?.[0]?.path) updateData.logo = req.files.logo[0].path;
         if (req.files?.photo?.[0]?.path) updateData.photo = req.files.photo[0].path;

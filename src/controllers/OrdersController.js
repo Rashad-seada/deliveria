@@ -80,14 +80,42 @@ module.exports.createOrder = async (req, res) => {
         const orderType = cart.carts.length > 1 ? "Multi" : "Single";
         const restaurantIds = cart.carts.map(cartItem => cartItem.restaurant_details._id);
 
-        const newSubOrders = cart.carts.map(cartItem => ({
-            restaurant_id: cartItem.restaurant_details._id,
-            items: cartItem.items,
-            price_of_restaurant: cartItem.price_of_restaurant,
-            status: "Pending Approval",
-            cancel_me: false,
-            // Removed manual created_at, relying on Mongoose timestamps
-        }));
+        // Fetch all restaurants to get their commission percentages
+        const restaurants = await Restaurant.find({ _id: { $in: restaurantIds } })
+            .select('_id commission_percentage name');
+
+        const restaurantCommissionMap = {};
+        restaurants.forEach(r => {
+            restaurantCommissionMap[r._id.toString()] = r.commission_percentage || 0;
+        });
+
+        // Calculate commission for each sub-order
+        let totalCommission = 0;
+        let totalRestaurantNet = 0;
+
+        const newSubOrders = cart.carts.map(cartItem => {
+            const restaurantId = cartItem.restaurant_details._id.toString();
+            const commissionPercentage = restaurantCommissionMap[restaurantId] || 0;
+            const priceOfRestaurant = cartItem.price_of_restaurant || 0;
+
+            // Calculate commission amount
+            const commissionAmount = (priceOfRestaurant * commissionPercentage) / 100;
+            const restaurantNetAmount = priceOfRestaurant - commissionAmount;
+
+            totalCommission += commissionAmount;
+            totalRestaurantNet += restaurantNetAmount;
+
+            return {
+                restaurant_id: cartItem.restaurant_details._id,
+                items: cartItem.items,
+                price_of_restaurant: priceOfRestaurant,
+                commission_percentage: commissionPercentage,
+                commission_amount: Math.round(commissionAmount * 100) / 100, // Round to 2 decimals
+                restaurant_net_amount: Math.round(restaurantNetAmount * 100) / 100,
+                status: "Pending Approval",
+                cancel_me: false,
+            };
+        });
 
         const orderId = await getNextSequenceValue('order_id');
 
@@ -99,6 +127,8 @@ module.exports.createOrder = async (req, res) => {
             final_price_without_delivery_cost: cart.final_price_without_delivery_cost,
             final_delivery_cost: cart.final_delivery_cost,
             final_price: cart.final_price,
+            total_commission_amount: Math.round(totalCommission * 100) / 100,
+            total_restaurant_net: Math.round(totalRestaurantNet * 100) / 100,
             delivery_type: "Agent", // Defaulting to Agent delivery
             payment_type: payment_type,
             status: "Pending Approval",
@@ -106,6 +136,17 @@ module.exports.createOrder = async (req, res) => {
         });
 
         const savedOrder = await order.save();
+
+        // Update restaurant statistics with commission (optional - for future reporting)
+        // This can be done in a background job for better performance
+        for (const subOrder of newSubOrders) {
+            await Restaurant.findByIdAndUpdate(subOrder.restaurant_id, {
+                $inc: {
+                    'statistics.total_orders': 1,
+                    'statistics.total_revenue': subOrder.price_of_restaurant
+                }
+            });
+        }
 
         // Clear the user's cart after successful order creation
         await Cart.findOneAndDelete({ user_id: userId });
@@ -132,7 +173,7 @@ module.exports.createOrder = async (req, res) => {
 async function getCart(id, address) {
     const cart = await findUserCart(id);
     if (!cart) return null;
-    
+
     const { enrichedCarts, finalPriceWithoutDelivery } = await processCartItems(cart);
     const finalDeliveryCost = await calculateDeliveryCost(id, cart, address);
 
@@ -148,18 +189,18 @@ async function findUserCart(userId) {
 async function calculateDeliveryCost(userId, cart, address) {
     const restaurantIds = [...new Set(cart.carts.map(c => c.restaurant_id.toString()))];
     const restaurants = await Restaurant.find({ '_id': { $in: restaurantIds } }).select('coordinates');
-    
+
     if (restaurants.length === 0) return 0;
-    
+
     // استخدام الدالة المشتركة لحساب أقصى مسافة
     const maxDistance = calculateMaxDistanceToRestaurants(
         restaurants,
         address.coordinates
     );
-    
+
     const orderType = restaurants.length > 1 ? "Multi" : "Single";
     const deliveryFee = calculateDeliveryFee(maxDistance, orderType);
-    
+
     return Math.ceil(deliveryFee);
 }
 
@@ -343,3 +384,123 @@ module.exports.reorder = async (req, res) => {
     }
 };
 
+/**
+ * GET /orders/commission-stats
+ * Get commission statistics for admin dashboard
+ * Query params:
+ *   - restaurant_id (optional): Filter by specific restaurant
+ *   - start_date (optional): Start date for date range
+ *   - end_date (optional): End date for date range
+ */
+module.exports.getCommissionStats = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        // Only admin can access commission stats
+        if (req.decoded.user_type !== "Admin") {
+            return res.status(403).json({ message: "Admin access required" });
+        }
+
+        const { restaurant_id, start_date, end_date } = req.query;
+
+        // Build match conditions
+        const matchConditions = {
+            status: { $in: ["Delivered", "Completed"] }
+        };
+
+        if (start_date || end_date) {
+            matchConditions.createdAt = {};
+            if (start_date) matchConditions.createdAt.$gte = new Date(start_date);
+            if (end_date) matchConditions.createdAt.$lte = new Date(end_date);
+        }
+
+        // Aggregation pipeline for commission statistics
+        const pipeline = [
+            { $match: matchConditions },
+            { $unwind: "$orders" },
+        ];
+
+        // Filter by restaurant if specified
+        if (restaurant_id) {
+            const mongoose = require('mongoose');
+            pipeline.push({
+                $match: { "orders.restaurant_id": new mongoose.Types.ObjectId(restaurant_id) }
+            });
+        }
+
+        // Group by restaurant
+        pipeline.push({
+            $group: {
+                _id: "$orders.restaurant_id",
+                total_orders: { $sum: 1 },
+                total_sales: { $sum: "$orders.price_of_restaurant" },
+                total_commission: { $sum: "$orders.commission_amount" },
+                total_restaurant_net: { $sum: "$orders.restaurant_net_amount" },
+                avg_commission_percentage: { $avg: "$orders.commission_percentage" }
+            }
+        });
+
+        // Lookup restaurant details
+        pipeline.push({
+            $lookup: {
+                from: "restaurants",
+                localField: "_id",
+                foreignField: "_id",
+                as: "restaurant"
+            }
+        });
+
+        pipeline.push({ $unwind: "$restaurant" });
+
+        // Project final shape
+        pipeline.push({
+            $project: {
+                restaurant_id: "$_id",
+                restaurant_name: "$restaurant.name",
+                restaurant_logo: "$restaurant.logo",
+                commission_percentage: "$restaurant.commission_percentage",
+                total_orders: 1,
+                total_sales: { $round: ["$total_sales", 2] },
+                total_commission: { $round: ["$total_commission", 2] },
+                total_restaurant_net: { $round: ["$total_restaurant_net", 2] },
+                avg_commission_percentage: { $round: ["$avg_commission_percentage", 1] }
+            }
+        });
+
+        // Sort by total commission descending
+        pipeline.push({ $sort: { total_commission: -1 } });
+
+        const stats = await Order.aggregate(pipeline);
+
+        // Calculate totals
+        const totals = stats.reduce((acc, stat) => {
+            acc.total_sales += stat.total_sales || 0;
+            acc.total_commission += stat.total_commission || 0;
+            acc.total_restaurant_net += stat.total_restaurant_net || 0;
+            acc.total_orders += stat.total_orders || 0;
+            return acc;
+        }, { total_sales: 0, total_commission: 0, total_restaurant_net: 0, total_orders: 0 });
+
+        return res.status(200).json({
+            success: true,
+            summary: {
+                total_orders: totals.total_orders,
+                total_sales: Math.round(totals.total_sales * 100) / 100,
+                total_commission: Math.round(totals.total_commission * 100) / 100,
+                total_restaurant_net: Math.round(totals.total_restaurant_net * 100) / 100,
+                platform_revenue: Math.round(totals.total_commission * 100) / 100 // Commission is platform revenue
+            },
+            restaurants: stats
+        });
+
+    } catch (error) {
+        console.error("getCommissionStats error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
