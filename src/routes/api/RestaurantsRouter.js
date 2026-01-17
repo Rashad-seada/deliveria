@@ -60,6 +60,10 @@ router.put("/change_have_delivery/:id", checkToken, restaurantsController.change
 // Ø­Ø°Ù
 router.delete("/delete/:id", checkToken, restaurantsController.deleteRestaurant);
 
+// Upload photo/logo separately
+router.post("/upload-photo/:id", checkToken, upload.single('photo'), restaurantsController.uploadPhoto);
+router.post("/upload-logo/:id", checkToken, upload.single('logo'), restaurantsController.uploadLogo);
+
 // ØªÙ‚ÙŠÙŠÙ…
 router.put("/add_review", checkToken, restaurantsController.addReview);
 

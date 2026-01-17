@@ -147,7 +147,7 @@ module.exports.updateRestaurant = async (req, res) => {
     try {
         // --- التحسين: التحقق من الصلاحيات ---
         if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
+            return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
         const restaurantId = req.params.id;
@@ -155,20 +155,87 @@ module.exports.updateRestaurant = async (req, res) => {
         const isAdmin = req.decoded.user_type === "Admin";
 
         if (!isOwner && !isAdmin) {
-            return res.status(403).json({ message: "Forbidden: You do not have permission to update this restaurant." });
+            return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to update this restaurant." });
         }
 
         const restaurant = await Restaurant.findById(restaurantId);
-        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
 
-        const updateData = {
-            name: req.body.name?.trim() || restaurant.name,
-            about_us: req.body.about_us?.trim() || restaurant.about_us,
-            open_hour: req.body.open_hour?.trim() || restaurant.open_hour,
-            close_hour: req.body.close_hour?.trim() || restaurant.close_hour,
-        };
+        const updateData = {};
 
-        // Handle new admin fields (only admin can update these)
+        // Fields editable by both Admin and Owner
+        if (req.body.name?.trim()) updateData.name = req.body.name.trim();
+        if (req.body.about_us?.trim()) updateData.about_us = req.body.about_us.trim();
+        if (req.body.open_hour?.trim()) updateData.open_hour = req.body.open_hour.trim();
+        if (req.body.close_hour?.trim()) updateData.close_hour = req.body.close_hour.trim();
+
+        // Handle coordinates update (both can update)
+        if (req.body.latitude !== undefined && req.body.longitude !== undefined) {
+            const lat = parseFloat(req.body.latitude);
+            const lng = parseFloat(req.body.longitude);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                updateData.coordinates = { latitude: lat, longitude: lng };
+            }
+        }
+
+        // Handle location_map URL update
+        if (req.body.location_map?.trim()) {
+            updateData.location_map = req.body.location_map.trim();
+            // Try to extract coordinates from Google Maps URL
+            try {
+                const response = await axios.get(req.body.location_map.trim(), { maxRedirects: 10 });
+                const finalUrl = response.request.res.responseUrl;
+                const coords = extractCoordsFromFinalUrl(finalUrl);
+                if (coords) {
+                    updateData.coordinates = { latitude: coords.latitude, longitude: coords.longitude };
+                }
+            } catch (err) {
+                console.log("Could not extract coordinates from URL:", err.message);
+            }
+        }
+
+        // Handle phone update (admin only to prevent abuse)
+        if (isAdmin && req.body.phone?.trim()) {
+            const newPhone = req.body.phone.trim();
+            // Check if new phone is already in use by another restaurant
+            const existingRestaurant = await Restaurant.findOne({ phone: newPhone, _id: { $ne: restaurantId } });
+            if (existingRestaurant) {
+                return res.status(409).json({ success: false, message: "Phone number already in use by another restaurant" });
+            }
+            updateData.phone = newPhone;
+            updateData.user_name = newPhone; // Keep user_name in sync
+        }
+
+        // Handle categories update
+        if (req.body.super_category) {
+            try {
+                const superCats = typeof req.body.super_category === 'string'
+                    ? JSON.parse(req.body.super_category)
+                    : req.body.super_category;
+                if (Array.isArray(superCats) && superCats.length > 0) {
+                    updateData.super_category = superCats;
+                }
+            } catch (e) {
+                console.log("Error parsing super_category:", e.message);
+            }
+        }
+
+        if (req.body.sub_category) {
+            try {
+                const subCats = typeof req.body.sub_category === 'string'
+                    ? JSON.parse(req.body.sub_category)
+                    : req.body.sub_category;
+                if (Array.isArray(subCats) && subCats.length > 0) {
+                    updateData.sub_category = subCats;
+                }
+            } catch (e) {
+                console.log("Error parsing sub_category:", e.message);
+            }
+        }
+
+        // Admin-only fields
         if (isAdmin) {
             if (req.body.commission_percentage !== undefined) {
                 let commission = parseFloat(req.body.commission_percentage);
@@ -191,22 +258,53 @@ module.exports.updateRestaurant = async (req, res) => {
                 }
             }
             if (req.body.delivery_cost !== undefined) {
-                updateData.delivery_cost = parseFloat(req.body.delivery_cost) || restaurant.delivery_cost;
+                const cost = parseFloat(req.body.delivery_cost);
+                if (!isNaN(cost) && cost >= 0) {
+                    updateData.delivery_cost = cost;
+                }
             }
             if (req.body.estimated_time !== undefined) {
-                updateData.estimated_time = parseInt(req.body.estimated_time) || restaurant.estimated_time;
+                const estTime = parseInt(req.body.estimated_time);
+                if (!isNaN(estTime) && estTime > 0) {
+                    updateData.estimated_time = estTime;
+                }
+            }
+            // Admin can toggle visibility
+            if (req.body.is_show !== undefined) {
+                updateData.is_show = req.body.is_show === true || req.body.is_show === 'true';
+            }
+            if (req.body.is_show_in_home !== undefined) {
+                updateData.is_show_in_home = req.body.is_show_in_home === true || req.body.is_show_in_home === 'true';
+            }
+            if (req.body.have_delivery !== undefined) {
+                updateData.have_delivery = req.body.have_delivery === true || req.body.have_delivery === 'true';
             }
         }
 
+        // Handle image uploads
         if (req.files?.logo?.[0]?.path) updateData.logo = req.files.logo[0].path;
         if (req.files?.photo?.[0]?.path) updateData.photo = req.files.photo[0].path;
 
-        const updatedRestaurant = await Restaurant.findByIdAndUpdate(restaurantId, { $set: updateData }, { new: true });
-        return res.status(200).json({ message: "Restaurant updated successfully", restaurant: updatedRestaurant });
+        // Check if there's anything to update
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ success: false, message: "No valid fields to update" });
+        }
+
+        const updatedRestaurant = await Restaurant.findByIdAndUpdate(
+            restaurantId,
+            { $set: updateData },
+            { new: true }
+        ).select('-password');
+
+        return res.status(200).json({
+            success: true,
+            message: "Restaurant updated successfully",
+            data: updatedRestaurant
+        });
 
     } catch (error) {
         console.error("updateRestaurant error:", error);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ success: false, message: "Server error", error: error.message });
     }
 };
 
@@ -627,16 +725,119 @@ module.exports.changeHaveDelivery = async (req, res) => {
     }
 };
 
-// حذف مطعم
+// حذف مطعم (Soft Delete - Admin Only)
 module.exports.deleteRestaurant = async (req, res) => {
     try {
-        const restaurant = await Restaurant.findByIdAndDelete(req.params.id);
-        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+        if (!req.decoded) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
 
-        return res.status(200).json({ message: "Restaurant deleted successfully" });
+        // Only admin can delete restaurants
+        if (req.decoded.user_type !== "Admin") {
+            return res.status(403).json({ success: false, message: "Admin access required" });
+        }
+
+        const restaurant = await Restaurant.findById(req.params.id);
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+
+        // Soft delete - set status to Inactive and hide
+        await Restaurant.findByIdAndUpdate(req.params.id, {
+            $set: {
+                status: "Inactive",
+                is_show: false,
+                is_show_in_home: false
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Restaurant deactivated successfully"
+        });
     } catch (error) {
         console.error("deleteRestaurant error:", error);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ success: false, message: "Server error", error: error.message });
+    }
+};
+
+// Upload restaurant photo
+module.exports.uploadPhoto = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const restaurantId = req.params.id;
+        const isOwner = req.decoded.user_type === "Restaurant" && req.decoded.id === restaurantId;
+        const isAdmin = req.decoded.user_type === "Admin";
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to update this restaurant." });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "Photo file is required" });
+        }
+
+        const restaurant = await Restaurant.findByIdAndUpdate(
+            restaurantId,
+            { $set: { photo: req.file.path } },
+            { new: true }
+        ).select('-password');
+
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Photo updated successfully",
+            data: { photo: restaurant.photo }
+        });
+    } catch (error) {
+        console.error("uploadPhoto error:", error);
+        return res.status(500).json({ success: false, message: "Server error", error: error.message });
+    }
+};
+
+// Upload restaurant logo
+module.exports.uploadLogo = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const restaurantId = req.params.id;
+        const isOwner = req.decoded.user_type === "Restaurant" && req.decoded.id === restaurantId;
+        const isAdmin = req.decoded.user_type === "Admin";
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to update this restaurant." });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "Logo file is required" });
+        }
+
+        const restaurant = await Restaurant.findByIdAndUpdate(
+            restaurantId,
+            { $set: { logo: req.file.path } },
+            { new: true }
+        ).select('-password');
+
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Logo updated successfully",
+            data: { logo: restaurant.logo }
+        });
+    } catch (error) {
+        console.error("uploadLogo error:", error);
+        return res.status(500).json({ success: false, message: "Server error", error: error.message });
     }
 };
 

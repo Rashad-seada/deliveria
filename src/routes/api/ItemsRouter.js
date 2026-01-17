@@ -15,11 +15,12 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.post("/create", upload.single('photo'), checkToken, itemsController.createItem);
-router.put("/update/:id", checkToken, itemsController.updateItem);
+router.put("/update/:id", upload.single('photo'), checkToken, itemsController.updateItem);
 router.get("/all_items_for_restaurant/:restaurant_id/:item_category_id", itemsController.getAllItemsForRestaurant);
 router.get("/sort_by_price/:restaurant_id", itemsController.getAllItemsByPrice);
 router.delete("/delete/:id", checkToken, itemsController.deleteItem);
-router.put("/change_enable/:id", itemsController.changeEnable);
+router.post("/upload-image/:id", upload.single('photo'), checkToken, itemsController.uploadImage);
+router.put("/change_enable/:id", checkToken, itemsController.changeEnable);
 router.get("/search/:id/:search", itemsController.searchItem);
 router.put("/all", itemsController.updateAll);
 

@@ -62,44 +62,100 @@ module.exports.createItem = async (req, res) => {
 
 module.exports.updateItem = async (req, res) => {
     try {
-        if (req.body.decoded.user_type !== "Restaurant") {
-            return res.json({
-                message: 'This account is not restaurant'
-            })
+        if (!req.decoded) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
         }
+
+        const itemId = req.params.id;
+        const item = await Item.findById(itemId);
+
+        if (!item) {
+            return res.status(404).json({ success: false, message: "Item not found" });
+        }
+
+        // Check permissions: Restaurant owner or Admin
+        const isOwner = req.decoded.user_type === "Restaurant" && req.decoded.id === item.restaurant_id.toString();
+        const isAdmin = req.decoded.user_type === "Admin";
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to update this item." });
+        }
+
         const body = req.body;
+        const updateData = {};
 
-        let sizes = []
+        // Update name and description
+        if (body.name?.trim()) updateData.name = body.name.trim();
+        if (body.description?.trim()) updateData.description = body.description.trim();
 
-        const sizesFront = JSON.parse(body.sizes)
+        // Update item_category
+        if (body.item_category) updateData.item_category = body.item_category;
 
-        for (let i = 0; i < sizesFront.length; i++) {
-            sizes.push({
-                size: sizesFront[i].size,
-                price_before: sizesFront[i].price_before,
-                price_after: sizesFront[i].price_after,
-                offer: (sizesFront[i].price_after / sizesFront[i].price_before) * 100
-            })
+        // Update enable status
+        if (body.enable !== undefined) {
+            updateData.enable = body.enable === true || body.enable === 'true';
         }
 
-
-        let update = {
-            name: body.name.trim(),
-            description: body.description.trim(),
-            sizes: sizes,
-            toppings: JSON.parse(body.toppings)
+        // Update have_option
+        if (body.have_option !== undefined) {
+            updateData.have_option = body.have_option === true || body.have_option === 'true';
         }
 
-        Item.findByIdAndUpdate(req.params.id, { $set: update }, { new: true }).then(response => {
-            return res.status(200).json({
-                message: "Item is updated"
-            })
-        })
+        // Handle sizes update
+        if (body.sizes) {
+            try {
+                const sizesFront = typeof body.sizes === 'string' ? JSON.parse(body.sizes) : body.sizes;
+                updateData.sizes = sizesFront.map(s => ({
+                    size: s.size,
+                    price_before: parseFloat(s.price_before) || 0,
+                    price_after: parseFloat(s.price_after) || 0,
+                    offer: s.price_before > 0
+                        ? Math.round(((s.price_before - s.price_after) / s.price_before) * 100)
+                        : 0
+                }));
+            } catch (e) {
+                console.log("Error parsing sizes:", e.message);
+            }
+        }
+
+        // Handle toppings update
+        if (body.toppings) {
+            try {
+                updateData.toppings = typeof body.toppings === 'string'
+                    ? JSON.parse(body.toppings)
+                    : body.toppings;
+            } catch (e) {
+                console.log("Error parsing toppings:", e.message);
+            }
+        }
+
+        // Handle photo update
+        if (req.file?.path) {
+            updateData.photo = req.file.path;
+        }
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ success: false, message: "No valid fields to update" });
+        }
+
+        const updatedItem = await Item.findByIdAndUpdate(
+            itemId,
+            { $set: updateData },
+            { new: true }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Item updated successfully",
+            data: updatedItem
+        });
     } catch (error) {
-        console.log(error)
-        return res.json({
-            message: "Error"
-        })
+        console.error("updateItem error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message
+        });
     }
 }
 
@@ -153,32 +209,102 @@ module.exports.getAllItemsByPrice = (req, res, next) => {
     }
 }
 
-module.exports.deleteItem = (req, res, next) => {
+module.exports.deleteItem = async (req, res, next) => {
     try {
-        if (req.body.decoded.user_type !== "Restaurant") {
-            return res.json({
-                message: 'This account is not restaurant'
-            })
+        if (!req.decoded) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
         }
-        Item.findByIdAndDelete(req.params.id).then(async (response) => {
-            await Cart.updateMany(
-                { "carts.items.item_id": req.params.id },
-                { $pull: { "carts.$[].items": { item_id: req.params.id } } },
-            ).then(async (cart) => {
-                await Cart.updateMany(
-                    { "carts.items": { $size: 0 } },
-                    { $pull: { carts: { items: { $size: 0 } } } },
-                ).then(async (cart2) => {
-                    return res.status(200).json({ message: "Item is delete" })
-                });
-            });
-        })
+
+        const itemId = req.params.id;
+        const item = await Item.findById(itemId);
+
+        if (!item) {
+            return res.status(404).json({ success: false, message: "Item not found" });
+        }
+
+        // Check permissions: Restaurant owner or Admin
+        const isOwner = req.decoded.user_type === "Restaurant" && req.decoded.id === item.restaurant_id.toString();
+        const isAdmin = req.decoded.user_type === "Admin";
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to delete this item." });
+        }
+
+        // Delete the item
+        await Item.findByIdAndDelete(itemId);
+
+        // Clean up carts that contain this item
+        await Cart.updateMany(
+            { "carts.items.item_id": itemId },
+            { $pull: { "carts.$[].items": { item_id: itemId } } }
+        );
+
+        // Remove empty cart entries
+        await Cart.updateMany(
+            { "carts.items": { $size: 0 } },
+            { $pull: { carts: { items: { $size: 0 } } } }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Item deleted successfully"
+        });
     } catch (error) {
-        return res.json({
-            message: "Error"
-        })
+        console.error("deleteItem error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message
+        });
     }
 }
+
+// Upload item image
+module.exports.uploadImage = async (req, res) => {
+    try {
+        if (!req.decoded) {
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        }
+
+        const itemId = req.params.id;
+        const item = await Item.findById(itemId);
+
+        if (!item) {
+            return res.status(404).json({ success: false, message: "Item not found" });
+        }
+
+        // Check permissions: Restaurant owner or Admin
+        const isOwner = req.decoded.user_type === "Restaurant" && req.decoded.id === item.restaurant_id.toString();
+        const isAdmin = req.decoded.user_type === "Admin";
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to update this item." });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "Image file is required" });
+        }
+
+        const updatedItem = await Item.findByIdAndUpdate(
+            itemId,
+            { $set: { photo: req.file.path } },
+            { new: true }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Image updated successfully",
+            data: { photo: updatedItem.photo }
+        });
+    } catch (error) {
+        console.error("uploadImage error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
 
 module.exports.changeEnable = async (req, res, next) => {
     try {
