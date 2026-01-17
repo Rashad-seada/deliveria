@@ -5,7 +5,17 @@ const { checkToken } = require("../../auth/token_validation");
 const restaurantsController = require("../../controllers/RestaurantsController");
 const multer = require('multer');
 
-const upload = multer({ dest: 'uploads/' });
+// Set up the multer storage configuration
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './deliveria_upload');
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + (Math.floor(Math.random() * (999999 - 1 + 1)) + 1) + file.originalname.replace(/\s+/g, '_'));
+  }
+});
+
+const upload = multer({ storage: storage });
 
 // Ø¥Ù†Ø´Ø§Ø¡ Ù…Ø·Ø¹Ù… (Admin)
 router.post(
