@@ -3,6 +3,7 @@
 const router = require("express").Router();
 const { checkToken } = require("../../auth/token_validation");
 const restaurantsController = require("../../controllers/RestaurantsController");
+const branchesController = require("../../controllers/BranchesController");
 const multer = require('multer');
 
 // Set up the multer storage configuration
@@ -107,5 +108,27 @@ router.get("/:id/offers", checkToken, restaurantsController.getRestaurantOffers)
 
 // Get restaurant details with has_offers field
 router.get("/details/:id", checkToken, restaurantsController.getRestaurantDetails);
+
+// =====================================================
+// MULTI-BRANCH ENDPOINTS - إدارة الفروع
+// =====================================================
+
+// Get all branches of a restaurant
+router.get("/:id/branches", checkToken, branchesController.getBranches);
+
+// Create a new branch
+router.post("/:id/branches", checkToken, branchesController.createBranch);
+
+// Get single branch details
+router.get("/branches/:branchId", checkToken, branchesController.getBranchById);
+
+// Update branch details
+router.put("/branches/:branchId", checkToken, branchesController.updateBranch);
+
+// Delete a branch (soft delete)
+router.delete("/branches/:branchId", checkToken, branchesController.deleteBranch);
+
+// Toggle branch visibility (pause/resume)
+router.patch("/branches/:branchId/toggle", checkToken, branchesController.toggleBranch);
 
 module.exports = router;

@@ -159,6 +159,26 @@ const restaurantSchema = new Schema(
         fcm_token: {
             type: String,
             default: null
+        },
+        // Multi-branch support fields
+        parent_restaurant_id: {
+            type: Schema.Types.ObjectId,
+            ref: 'restaurant',
+            default: null,
+            index: true
+        },
+        is_main_branch: {
+            type: Boolean,
+            default: true
+        },
+        branch_name: {
+            type: String,
+            default: null  // e.g., "Downtown", "Mall Branch"
+        },
+        branch_code: {
+            type: String,
+            unique: true,
+            sparse: true  // Allows null but unique when set
         }
     },
     { timestamps: true }
