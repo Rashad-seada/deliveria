@@ -75,6 +75,11 @@ const orderSchema = new Schema(
           ref: "restaurant",
           required: true
         },
+        branch_id: {
+          type: Schema.Types.ObjectId,
+          ref: "restaurant",
+          default: null
+        },
         items: [
           {
             item_details: {

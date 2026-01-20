@@ -89,11 +89,49 @@ module.exports.createOrder = async (req, res) => {
             restaurantCommissionMap[r._id.toString()] = r.commission_percentage || 0;
         });
 
-        // Calculate commission for each sub-order
+        // Calculate commission for each sub-order and Assign Nearest Branch
         let totalCommission = 0;
         let totalRestaurantNet = 0;
 
-        const newSubOrders = cart.carts.map(cartItem => {
+        // Helper to find nearest branch
+        const findNearestBranch = async (parentId, userCoords) => {
+            try {
+                // Find all active branches for this parent
+                const branches = await Restaurant.find({
+                    parent_restaurant_id: parentId,
+                    status: "Active",
+                    is_show: true,
+                    // is_open: true // Optional: Enforce open status strictly?
+                }).select('_id coordinates open_hour close_hour is_open');
+
+                if (branches.length === 0) return null;
+
+                let nearestBranch = null;
+                let minDistance = Infinity;
+
+                for (const branch of branches) {
+                    if (branch.coordinates && branch.coordinates.latitude && branch.coordinates.longitude) {
+                        const distance = calculateDistance(
+                            userCoords.latitude,
+                            userCoords.longitude,
+                            branch.coordinates.latitude,
+                            branch.coordinates.longitude
+                        );
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            nearestBranch = branch;
+                        }
+                    }
+                }
+                return nearestBranch ? nearestBranch._id : null;
+            } catch (err) {
+                console.error("Error finding nearest branch:", err);
+                return null;
+            }
+        };
+
+        // Use Promise.all since we have async calls inside loop
+        const newSubOrders = await Promise.all(cart.carts.map(async (cartItem) => {
             const restaurantId = cartItem.restaurant_details._id.toString();
             const commissionPercentage = restaurantCommissionMap[restaurantId] || 0;
             const priceOfRestaurant = cartItem.price_of_restaurant || 0;
@@ -105,8 +143,15 @@ module.exports.createOrder = async (req, res) => {
             totalCommission += commissionAmount;
             totalRestaurantNet += restaurantNetAmount;
 
+            // Find nearest branch
+            let branchId = null;
+            if (address && address.coordinates) {
+                branchId = await findNearestBranch(cartItem.restaurant_details._id, address.coordinates);
+            }
+
             return {
                 restaurant_id: cartItem.restaurant_details._id,
+                branch_id: branchId, // Assign nearest branch if found
                 items: cartItem.items,
                 price_of_restaurant: priceOfRestaurant,
                 commission_percentage: commissionPercentage,
@@ -115,7 +160,7 @@ module.exports.createOrder = async (req, res) => {
                 status: "Pending Approval",
                 cancel_me: false,
             };
-        });
+        }));
 
         const orderId = await getNextSequenceValue('order_id');
 

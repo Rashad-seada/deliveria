@@ -895,16 +895,20 @@ module.exports.myOrder = async (req, res) => {
 
         const restaurantId = req.decoded.id;
 
-        // جلب جميع الطلبات التي تحتوي على طلب فرعي لهذا المطعم
+        // Fetch all orders for this restaurant (Parent ID).
+        // Since branches dont log in, we query by parent restaurant_id.
+        // We populate branch info so the owner sees it.
         const orders = await Order.find({ "orders.restaurant_id": restaurantId })
             .populate('user_id', 'first_name last_name')
+            .populate('orders.branch_id', 'branch_name name')
+            .populate('orders.restaurant_id', 'name logo')
             .sort({ createdAt: -1 });
 
-        // فلترة الطلبات لتناسب المطعم
         const restaurantOrders = orders.map(order => {
             const subOrder = order.orders.find(so => so.restaurant_id.equals(restaurantId));
-            return { ...order.toObject(), orders: [subOrder] }; // إرجاع الطلب مع الطلب الفرعي الخاص بالمطعم فقط
-        }).filter(order => order.orders[0]); // التأكد من وجود الطلب الفرعي
+            if (subOrder) return { ...order.toObject(), orders: [subOrder] };
+            return null;
+        }).filter(order => order !== null);
 
         return res.status(200).json({ orders: restaurantOrders });
 
