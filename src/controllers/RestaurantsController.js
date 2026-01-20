@@ -387,7 +387,7 @@ module.exports.getHomeRestaurants = async (req, res) => {
             return res.status(400).json({ message: "Invalid coordinates" });
         }
 
-        const restaurants = await Restaurant.find({ is_show: true, is_show_in_home: true })
+        const restaurants = await Restaurant.find({ is_show: true, is_show_in_home: true, parent_restaurant_id: null })
             .populate({ path: 'super_category', select: 'name_en name_ar logo' })
             .populate({ path: 'sub_category', select: 'name_en name_ar' })
             .select(not_select.join(' '));
@@ -467,7 +467,7 @@ module.exports.getRestaurantsByRate = async (req, res) => {
             return res.status(400).json({ message: "Invalid coordinates" });
         }
 
-        const restaurants = await Restaurant.find({ is_show: true })
+        const restaurants = await Restaurant.find({ is_show: true, parent_restaurant_id: null })
             .populate({ path: 'super_category', select: 'name_en name_ar logo' })
             .populate({ path: 'sub_category', select: 'name_en name_ar' })
             .sort({ rate: -1 })
@@ -518,6 +518,7 @@ module.exports.searchRestaurant = async (req, res) => {
 
         const restaurants = await Restaurant.find({
             is_show: true,
+            parent_restaurant_id: null,
             $or: [
                 { name: { $regex: search_text, $options: 'i' } },
                 { about_us: { $regex: search_text, $options: 'i' } }
@@ -603,6 +604,7 @@ module.exports.getRestaurantsByCategory = async (req, res) => {
 
         const query = {
             is_show: true,
+            parent_restaurant_id: null,
             super_category: super_category
         };
 
@@ -1140,7 +1142,8 @@ module.exports.getBestSellerRestaurants = async (req, res) => {
             // Step 9: Filter only visible restaurants
             {
                 $match: {
-                    "restaurant.is_show": true
+                    "restaurant.is_show": true,
+                    "restaurant.parent_restaurant_id": null
                 }
             },
             // Step 10: Project final shape
@@ -1277,7 +1280,8 @@ module.exports.getRestaurantsWithOffers = async (req, res) => {
             // Step 7: Filter out closed/hidden restaurants
             {
                 $match: {
-                    "restaurant.is_show": true
+                    "restaurant.is_show": true,
+                    "restaurant.parent_restaurant_id": null
                 }
             },
             // Step 8: Sort by offers_count descending
