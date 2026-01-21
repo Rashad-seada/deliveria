@@ -5,8 +5,6 @@ const PointsTransaction = require("../models/PointsTransaction");
 const {
     validateLoyaltyCode,
     markCodeAsUsed,
-    validateLoyaltyCode,
-    markCodeAsUsed,
     calculateLoyaltyDiscount,
     checkAndAwardRewards
 } = require("../utils/loyaltyHelpers");
