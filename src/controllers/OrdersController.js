@@ -61,7 +61,7 @@ module.exports.getOrders = async (req, res) => {
 module.exports.createOrder = async (req, res) => {
     try {
         const userId = req.decoded.id;
-        const { address_id, payment_type } = req.body;
+        const { address_id, payment_type, loyalty_code } = req.body;
 
         if (!address_id) {
             return res.status(400).json({ message: "Address is required." });
@@ -76,6 +76,23 @@ module.exports.createOrder = async (req, res) => {
         if (!cart || cart.carts.length === 0) {
             return res.status(400).json({ message: "Your cart is empty." });
         }
+
+        // --- Loyalty Code Validation ---
+        let loyaltyDiscount = 0;
+        let validatedReward = null;
+
+        if (loyalty_code) {
+            const { validateLoyaltyCode, calculateLoyaltyDiscount } = require("../utils/loyaltyHelpers");
+            const validation = await validateLoyaltyCode(userId, loyalty_code);
+
+            if (!validation.valid) {
+                return res.status(400).json({ message: validation.message });
+            }
+
+            validatedReward = validation.reward;
+            loyaltyDiscount = calculateLoyaltyDiscount(validatedReward, cart.final_price);
+        }
+        // --- End Loyalty Code Validation ---
 
         const orderType = cart.carts.length > 1 ? "Multi" : "Single";
         const restaurantIds = cart.carts.map(cartItem => cartItem.restaurant_details._id);
@@ -164,6 +181,9 @@ module.exports.createOrder = async (req, res) => {
 
         const orderId = await getNextSequenceValue('order_id');
 
+        // Calculate final price with loyalty discount
+        const finalPriceAfterLoyalty = Math.max(0, cart.final_price - loyaltyDiscount);
+
         const order = new Order({
             user_id: userId,
             order_type: orderType,
@@ -171,16 +191,36 @@ module.exports.createOrder = async (req, res) => {
             orders: newSubOrders,
             final_price_without_delivery_cost: cart.final_price_without_delivery_cost,
             final_delivery_cost: cart.final_delivery_cost,
-            final_price: cart.final_price,
+            final_price: finalPriceAfterLoyalty,
             total_commission_amount: Math.round(totalCommission * 100) / 100,
             total_restaurant_net: Math.round(totalRestaurantNet * 100) / 100,
             delivery_type: "Agent", // Defaulting to Agent delivery
             payment_type: payment_type,
             status: "Pending Approval",
-            order_id: orderId
+            order_id: orderId,
+            // Store loyalty discount info if applied
+            ...(loyaltyDiscount > 0 && {
+                loyalty_discount: {
+                    code: loyalty_code,
+                    discount_amount: loyaltyDiscount,
+                    discount_value: validatedReward.discountValue,
+                    discount_type: validatedReward.discountType
+                }
+            })
         });
 
         const savedOrder = await order.save();
+
+        // --- Mark Loyalty Code as Used ---
+        if (loyalty_code && validatedReward) {
+            try {
+                const { markCodeAsUsed } = require("../utils/loyaltyHelpers");
+                await markCodeAsUsed(userId, loyalty_code, savedOrder._id);
+            } catch (loyaltyErr) {
+                console.error("Failed to mark loyalty code as used:", loyaltyErr);
+            }
+        }
+        // --- End Mark Loyalty Code ---
 
         // Update restaurant statistics with commission (optional - for future reporting)
         // This can be done in a background job for better performance
@@ -205,7 +245,11 @@ module.exports.createOrder = async (req, res) => {
         return res.status(201).json({
             success: true,
             message: "Order placed successfully!",
-            order: savedOrder
+            order: savedOrder,
+            loyaltyDiscount: loyaltyDiscount > 0 ? {
+                code: loyalty_code,
+                amount: loyaltyDiscount
+            } : null
         });
 
     } catch (error) {

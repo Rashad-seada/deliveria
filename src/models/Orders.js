@@ -150,6 +150,14 @@ const orderSchema = new Schema(
       description: String
     }],
 
+    // Loyalty code discount
+    loyalty_discount: {
+      code: String,
+      discount_amount: Number,
+      discount_value: Number, // Original discount value from tier
+      discount_type: { type: String, enum: ['percentage', 'fixed'] }
+    },
+
     delivery_type: String,
     payment_type: String,
 

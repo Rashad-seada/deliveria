@@ -250,21 +250,19 @@ module.exports.updateOrderStatus = async (req, res) => {
         if (status === "Delivered") {
             order.order_status = "Delivered";
 
-            // --- إضافة نظام النقاط ---
-            const user = await User.findById(order.user_id._id);
-            if (user) {
-                user.points = (user.points || 0) + 1;
+            // --- New Loyalty Points System ---
+            try {
+                const { awardLoyaltyPoints } = require("../utils/loyaltyHelpers");
+                const loyaltyResult = await awardLoyaltyPoints(order);
 
-                if (user.points >= 5) {
-                    const admins = await Admin.find().select('_id');
-                    const adminIds = admins.map(admin => admin._id);
-                    const notificationMessage = `User ${user.first_name} ${user.last_name} (Phone: ${user.phone}) has reached 5 points.`;
-                    sendNotification(adminIds, user._id, notificationMessage);
-                    user.points = 0; // Reset points
+                if (loyaltyResult.success && loyaltyResult.pointsEarned > 0) {
+                    console.log(`Loyalty: User earned ${loyaltyResult.pointsEarned} points. New rewards: ${loyaltyResult.newRewards?.length || 0}`);
                 }
-                await user.save();
+            } catch (loyaltyError) {
+                console.error("Loyalty points error:", loyaltyError);
+                // Don't fail the order status update if loyalty fails
             }
-            // --- نهاية نظام النقاط ---
+            // --- End Loyalty Points System ---
         } else if (status === "On the way") {
             order.order_status = "On the way";
         }

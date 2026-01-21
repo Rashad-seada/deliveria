@@ -10,16 +10,37 @@ const userSchema = new Schema({
   password: { type: String, required: true },
   ban: { type: Boolean, default: false },
   fcm_token: { type: String, default: null },
+
+  // Loyalty Points System
+  loyalty: {
+    totalPoints: { type: Number, default: 0 },
+    // History of earned reward codes (preserved forever)
+    earnedRewards: [{
+      rewardTierId: { type: Schema.Types.ObjectId, ref: 'RewardTier' },
+      tierName: { type: String }, // Snapshot of tier name
+      code: { type: String, required: true },
+      earnedAt: { type: Date, default: Date.now },
+      isUsed: { type: Boolean, default: false },
+      usedAt: { type: Date },
+      usedInOrderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+      discountValue: { type: Number }, // Snapshot of discount at time of earning
+      discountType: { type: String, enum: ['percentage', 'fixed'] },
+      maxDiscount: { type: Number } // Snapshot of max discount cap
+    }]
+  },
+
+  // Legacy points field (deprecated, kept for backward compatibility)
   points: { type: Number, default: 0 },
+
   address_id: { type: Schema.Types.ObjectId, ref: "address", default: null },
-  
+
   // User preferences
   preferred_payment_method: {
     type: String,
     enum: ["Cash", "Card", "Digital Wallet"],
     default: "Cash"
   },
-  
+
   // Order history tracking
   statistics: {
     total_orders: { type: Number, default: 0 },
@@ -27,23 +48,23 @@ const userSchema = new Schema({
     average_rating_given: { type: Number, default: 0 },
     last_order_date: Date
   },
-  
+
   // Favorite restaurants
   favorite_restaurants: [{
     type: Schema.Types.ObjectId,
     ref: "restaurant"
   }],
-  
+
   // Redeemed coupons
   redeemed_coupons: [{
     coupon_id: { type: Schema.Types.ObjectId, ref: "CouponCode" },
     redeemed_at: { type: Date, default: Date.now }
   }],
-  
+
   // Account status
   is_verified: { type: Boolean, default: false },
   verification_date: Date,
-  
+
   is_guest: { type: Boolean, default: false }
 }, { timestamps: true });
 
