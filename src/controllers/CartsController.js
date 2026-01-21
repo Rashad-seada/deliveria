@@ -115,45 +115,42 @@ async function processCartItems(cart, id, latitude, longitude) {
         let restaurantPrice = 0;
 
         // Calculate delivery cost (moved outside the map to avoid duplicate calculations)
-        if (orders.length % 5 !== 0) {
-            if (cart.carts.length === 1) {
-                finalDeliveryCost = 15;
-                const restaurant = await Restaurant.findById(cart.carts[0].restaurant_id);
+        // Calculate delivery cost
+        if (cart.carts.length === 1) {
+            finalDeliveryCost = 15;
+            const restaurant = await Restaurant.findById(cart.carts[0].restaurant_id);
+            let distance = calculateDistance(
+                latitude,
+                longitude,
+                restaurant.coordinates.latitude,
+                restaurant.coordinates.longitude
+            );
+            console.log(distance)
+            if (distance > 3) {
+                distance -= 3;
+                finalDeliveryCost += distance * 4;
+            }
+            finalDeliveryCost = Math.ceil(finalDeliveryCost)
+        } else {
+            finalDeliveryCost = 25;
+            let maxDistance = 0;
+            for (let i = 0; i < cart.carts.length; i++) {
+                const restaurant = await Restaurant.findById(cart.carts[i].restaurant_id);
                 let distance = calculateDistance(
                     latitude,
                     longitude,
                     restaurant.coordinates.latitude,
                     restaurant.coordinates.longitude
                 );
-                console.log(distance)
-                if (distance > 3) {
-                    distance -= 3;
-                    finalDeliveryCost += distance * 4;
+                if (distance > maxDistance) {
+                    maxDistance = distance;
                 }
-                finalDeliveryCost = Math.ceil(finalDeliveryCost)
-            } else {
-                finalDeliveryCost = 25;
-                let maxDistance = 0;
-                for (let i = 0; i < cart.carts.length; i++) {
-                    const restaurant = await Restaurant.findById(cart.carts[i].restaurant_id);
-                    let distance = calculateDistance(
-                        latitude,
-                        longitude,
-                        restaurant.coordinates.latitude,
-                        restaurant.coordinates.longitude
-                    );
-                    if (distance > maxDistance) {
-                        maxDistance = distance;
-                    }
-                }
-                if (maxDistance > 3) {
-                    maxDistance -= 3;
-                    finalDeliveryCost += maxDistance * 5;
-                }
-                finalDeliveryCost = Math.ceil(finalDeliveryCost)
             }
-        } else {
-            finalDeliveryCost = 0;
+            if (maxDistance > 3) {
+                maxDistance -= 3;
+                finalDeliveryCost += maxDistance * 5;
+            }
+            finalDeliveryCost = Math.ceil(finalDeliveryCost)
         }
 
         // Process items for this cart entry
