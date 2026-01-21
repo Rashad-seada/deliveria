@@ -5,7 +5,10 @@ const PointsTransaction = require("../models/PointsTransaction");
 const {
     validateLoyaltyCode,
     markCodeAsUsed,
-    calculateLoyaltyDiscount
+    validateLoyaltyCode,
+    markCodeAsUsed,
+    calculateLoyaltyDiscount,
+    checkAndAwardRewards
 } = require("../utils/loyaltyHelpers");
 
 // ####################################################################################################################
@@ -336,7 +339,7 @@ module.exports.adminGetUsersLoyalty = async (req, res) => {
         }
 
         const users = await User.find(query)
-            .select('first_name last_name phone loyalty.totalPoints loyalty.earnedRewards')
+            .select('first_name last_name phone loyalty.totalPoints loyalty.earnedRewards points')
             .sort({ 'loyalty.totalPoints': -1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -348,6 +351,7 @@ module.exports.adminGetUsersLoyalty = async (req, res) => {
             name: `${user.first_name} ${user.last_name}`,
             phone: user.phone,
             totalPoints: user.loyalty?.totalPoints || 0,
+            legacyPoints: user.points || 0,
             totalRewards: user.loyalty?.earnedRewards?.length || 0,
             usedRewards: user.loyalty?.earnedRewards?.filter(r => r.isUsed).length || 0
         }));
@@ -453,13 +457,17 @@ module.exports.adminAdjustPoints = async (req, res) => {
             adminId
         });
 
+        // Check for new rewards
+        const newRewards = await checkAndAwardRewards(userId);
+
         return res.status(200).json({
             success: true,
             message: `Points adjusted successfully. New balance: ${newBalance}`,
             data: {
                 previousBalance,
                 adjustment: parseInt(points),
-                newBalance
+                newBalance,
+                newRewards
             }
         });
 
