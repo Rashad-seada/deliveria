@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const LoyaltyController = require('../../controllers/LoyaltyController');
-const { verifyToken, isAdmin, isUser } = require('../../middleware/auth');
+const { verifyToken, isAdmin, isUser } = require('../../auth/token_validation');
 
 // ####################################################################################################################
 // #################################################### User Routes ###################################################
