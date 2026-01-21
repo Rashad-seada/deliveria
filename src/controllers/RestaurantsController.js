@@ -359,11 +359,8 @@ module.exports.getHomeRestaurants = async (req, res) => {
     try {
         let { latitude, longitude } = req.params;
 
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        if (latitude === "0" || longitude === "0") {
+        // Guest Mode Support: Use address only if user is logged in
+        if (req.decoded && (latitude === "0" || longitude === "0")) {
             if (req.decoded.user_type === "User") {
                 const user = await User.findById(req.decoded.id);
                 if (user?.address_id) {
@@ -439,11 +436,8 @@ module.exports.getRestaurantsByRate = async (req, res) => {
     try {
         let { latitude, longitude } = req.params;
 
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
-
-        if (latitude === "0" || longitude === "0") {
+        // Guest Mode Support
+        if (req.decoded && (latitude === "0" || longitude === "0")) {
             if (req.decoded.user_type === "User") {
                 const user = await User.findById(req.decoded.id);
                 if (user?.address_id) {
@@ -505,9 +499,8 @@ module.exports.searchRestaurant = async (req, res) => {
             return res.status(400).json({ message: "Search text is required" });
         }
 
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
+        // Guest Mode Support: Removed mandatory auth check
+        // if (!req.decoded) { return res.status(401).json({ message: "Unauthorized" }); }
 
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
@@ -591,9 +584,8 @@ module.exports.getRestaurantsByCategory = async (req, res) => {
     try {
         const { super_category, sub_category, latitude, longitude } = req.params;
 
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
+        // Guest Mode Support: Removed mandatory auth check
+        // if (!req.decoded) { return res.status(401).json({ message: "Unauthorized" }); }
 
         const userLat = parseFloat(latitude);
         const userLon = parseFloat(longitude);
@@ -1087,9 +1079,8 @@ module.exports.getBestSellerItems = async (req, res) => {
  */
 module.exports.getBestSellerRestaurants = async (req, res) => {
     try {
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
+        // Guest Mode Support: Removed mandatory auth check
+        // if (!req.decoded) { return res.status(401).json({ message: "Unauthorized" }); }
 
         const { latitude, longitude } = req.params;
         const limit = parseInt(req.query.limit) || 10;
@@ -1231,9 +1222,8 @@ const itemHasActiveOffer = (item) => {
  */
 module.exports.getRestaurantsWithOffers = async (req, res) => {
     try {
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
+        // Guest Mode Support: Removed mandatory auth check
+        // if (!req.decoded) { return res.status(401).json({ message: "Unauthorized" }); }
 
         const { latitude, longitude } = req.params;
         const limit = parseInt(req.query.limit) || 10;
@@ -1347,9 +1337,8 @@ module.exports.getRestaurantsWithOffers = async (req, res) => {
  */
 module.exports.getRestaurantOffers = async (req, res) => {
     try {
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
+        // Guest Mode Support: Removed mandatory auth check
+        // if (!req.decoded) { return res.status(401).json({ message: "Unauthorized" }); }
 
         const restaurantId = req.params.id;
 
@@ -1426,9 +1415,8 @@ module.exports.checkRestaurantHasOffers = async (restaurantId) => {
  */
 module.exports.getRestaurantDetails = async (req, res) => {
     try {
-        if (!req.decoded) {
-            return res.status(401).json({ message: "Unauthorized" });
-        }
+        // Guest Mode Support: Removed mandatory auth check
+
 
         const restaurantId = req.params.id;
 

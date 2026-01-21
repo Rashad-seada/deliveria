@@ -59,5 +59,33 @@ module.exports = {
   checkToken,
   verifyToken: checkToken, // Alias for consistency
   isAdmin,
-  isUser
+  isUser,
+
+  // Optional token check (for Guest Mode)
+  // If token exists and is valid -> req.decoded = user
+  // If token missing or invalid -> req.decoded = null (continue as guest)
+  optionalCheckToken: (req, res, next) => {
+    let token = req.get("authorization") || req.headers["authorization"];
+
+    if (!token) {
+      req.decoded = null;
+      return next();
+    }
+
+    // Remove "Bearer " if present
+    if (token.startsWith("Bearer ")) {
+      token = token.slice(7);
+    }
+
+    // Verify token
+    jwt.verify(token, process.env.JWT_KEY, (err, decoded) => {
+      if (err) {
+        // Invalid token? Just treat as guest
+        req.decoded = null;
+      } else {
+        req.decoded = decoded;
+      }
+      next();
+    });
+  }
 };

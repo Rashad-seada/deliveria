@@ -1,7 +1,7 @@
 // RestaurantsRouter.js - Ø§Ù„ÙƒÙˆØ¯ Ø§Ù„ÙƒØ§Ù…Ù„ (Ø¨Ø¯ÙˆÙ† ØªØºÙŠÙŠØ±Ø§Øª)
 
 const router = require("express").Router();
-const { checkToken } = require("../../auth/token_validation");
+const { checkToken, optionalCheckToken } = require("../../auth/token_validation");
 const restaurantsController = require("../../controllers/RestaurantsController");
 const branchesController = require("../../controllers/BranchesController");
 const multer = require('multer');
@@ -47,20 +47,20 @@ router.post("/login", restaurantsController.login);
 router.get("/all", checkToken, restaurantsController.getAllRestaurants);
 
 // Ø§Ù„ØµÙØ­Ø© Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©
-router.get("/home/:latitude/:longitude", checkToken, restaurantsController.getHomeRestaurants);
+router.get("/home/:latitude/:longitude", optionalCheckToken, restaurantsController.getHomeRestaurants);
 
 // Ø£Ø¹Ù„Ù‰ ØªÙ‚ÙŠÙŠÙ… (Admin)
 router.get("/all_rated_admin", checkToken, restaurantsController.getRestaurantsByRateAdmin);
 
 // Ø£Ø¹Ù„Ù‰ ØªÙ‚ÙŠÙŠÙ… (User)
-router.get("/all_rated/:latitude/:longitude", checkToken, restaurantsController.getRestaurantsByRate);
+router.get("/all_rated/:latitude/:longitude", optionalCheckToken, restaurantsController.getRestaurantsByRate);
 
 // Ø¨Ø­Ø«
-router.post("/search/:latitude/:longitude", checkToken, restaurantsController.searchRestaurant);
+router.post("/search/:latitude/:longitude", optionalCheckToken, restaurantsController.searchRestaurant);
 router.post("/admin_search", checkToken, restaurantsController.searchRestaurantAdmin);
 
 // Ø­Ø³Ø¨ Ø§Ù„ÙØ¦Ø©
-router.get("/category/:super_category/:sub_category/:latitude/:longitude", checkToken, restaurantsController.getRestaurantsByCategory);
+router.get("/category/:super_category/:sub_category/:latitude/:longitude", optionalCheckToken, restaurantsController.getRestaurantsByCategory);
 router.get("/admin_category/:super_category/:sub_category", checkToken, restaurantsController.getRestaurantsByCategoryAdmin);
 
 // ØªØºÙŠÙŠØ± Ø§Ù„Ø­Ø§Ù„Ø©
@@ -94,20 +94,20 @@ router.put("/ready_for_pickup_order/:orderId/:subOrderId", checkToken, restauran
 router.get("/best_seller/:id", checkToken, restaurantsController.getBestSellerItems);
 
 // أفضل المطاعم مبيعاً - Top 10 Best Selling Restaurants
-router.get("/best_sellers/:latitude/:longitude", checkToken, restaurantsController.getBestSellerRestaurants);
+router.get("/best_sellers/:latitude/:longitude", optionalCheckToken, restaurantsController.getBestSellerRestaurants);
 
 // =====================================================
 // OFFERS ENDPOINTS - Ø§Ù„Ø¹Ø±ÙˆØ¶ ÙˆØ§Ù„Ø®ØµÙˆÙ…Ø§Øª
 // =====================================================
 
 // Get restaurants with active offers (for home page carousel)
-router.get("/with_offers/:latitude/:longitude", checkToken, restaurantsController.getRestaurantsWithOffers);
+router.get("/with_offers/:latitude/:longitude", optionalCheckToken, restaurantsController.getRestaurantsWithOffers);
 
 // Get offers for a specific restaurant (for "Offers" tab in menu)
-router.get("/:id/offers", checkToken, restaurantsController.getRestaurantOffers);
+router.get("/:id/offers", optionalCheckToken, restaurantsController.getRestaurantOffers);
 
 // Get restaurant details with has_offers field
-router.get("/details/:id", checkToken, restaurantsController.getRestaurantDetails);
+router.get("/details/:id", optionalCheckToken, restaurantsController.getRestaurantDetails);
 
 // =====================================================
 // MULTI-BRANCH ENDPOINTS - إدارة الفروع

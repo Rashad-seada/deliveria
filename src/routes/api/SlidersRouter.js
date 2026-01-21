@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const { checkToken } = require("../../auth/token_validation");
+const { checkToken, optionalCheckToken } = require("../../auth/token_validation");
 const slidersController = require("../../controllers/SlidersController");
 const multer = require('multer');
 
@@ -15,7 +15,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.post("/create", upload.single('image'), checkToken, slidersController.createSlider);
-router.get("/all", checkToken, slidersController.getSlider);
+router.get("/all", optionalCheckToken, slidersController.getSlider);
 router.delete("/delete/:id", slidersController.deleteSlider);
 
 module.exports = router;
