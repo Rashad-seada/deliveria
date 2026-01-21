@@ -174,7 +174,7 @@ module.exports.createOrder = async (req, res) => {
                 commission_percentage: commissionPercentage,
                 commission_amount: Math.round(commissionAmount * 100) / 100, // Round to 2 decimals
                 restaurant_net_amount: Math.round(restaurantNetAmount * 100) / 100,
-                status: "Pending Approval",
+                status: "Waiting for Approval",
                 cancel_me: false,
             };
         }));
@@ -196,7 +196,7 @@ module.exports.createOrder = async (req, res) => {
             total_restaurant_net: Math.round(totalRestaurantNet * 100) / 100,
             delivery_type: "Agent", // Defaulting to Agent delivery
             payment_type: payment_type,
-            status: "Pending Approval",
+            status: "Waiting for Approval",
             order_id: orderId,
             // Store loyalty discount info if applied
             ...(loyaltyDiscount > 0 && {
