@@ -38,14 +38,22 @@ module.exports.createItemCategory = async (req, res) => {
 
 module.exports.getAllItemCategories = async (req, res, next) => {
     try {
-        ItemCategory.find({ restaurant_id: req.body.decoded.id }).then(itemCategories => {
-            return res.json({
+        // Fix: Use req.decoded instead of req.body.decoded
+        if (!req.decoded || !req.decoded.id) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+
+        ItemCategory.find({ restaurant_id: req.decoded.id }).then(itemCategories => {
+            return res.status(200).json({
+                success: true,
                 itemCategories: itemCategories
             })
         })
     } catch (error) {
-        return res.json({
-            message: "Error"
+        console.error("getAllItemCategories error:", error);
+        return res.status(500).json({
+            message: "Server Error",
+            error: error.message
         })
     }
 }
