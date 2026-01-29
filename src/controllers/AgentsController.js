@@ -121,9 +121,26 @@ module.exports.getAgents = async (req, res) => {
 module.exports.getOrdersByAgentId = async (req, res) => {
     try {
         const agentId = req.params.id;
-        const orders = await Order.find({ delivery_id: agentId })
-            .populate('user_id', 'first_name last_name')
-            .populate('orders.restaurant_id', 'logo name phone');
+        const { status } = req.query; // 'active' or 'history'
+
+        let query = { "agent.agent_id": agentId };
+
+        if (status === 'active') {
+            // "Delivering this moment": Orders that are assigned but not yet delivered or canceled
+            // Typically: 'On the Way', 'Packed / Ready for Pickup', 'Approved / Preparing'
+            query.order_status = {
+                $in: ['On the Way', 'Packed / Ready for Pickup', 'Approved / Preparing']
+            };
+        } else if (status === 'history') {
+            query.order_status = {
+                $in: ['Delivered', 'Canceled']
+            };
+        }
+
+        const orders = await Order.find(query)
+            .populate('user_id', 'first_name last_name phone')
+            .populate('orders.restaurant_id', 'logo name phone coordinates address')
+            .sort({ createdAt: -1 }); // Newest first
 
         return res.json({ orders });
     } catch (error) {
