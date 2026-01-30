@@ -284,7 +284,7 @@ module.exports.addCart = async (req, res) => {
                             {
                                 item_id: body.item_id,
                                 size: body.size,
-                                quantity: 1,
+                                quantity: body.quantity || 1, // Use provided quantity or default to 1
                                 toppings: body.toppings?.map(t => ({
                                     topping: t.topping,
                                     topping_quantity: 1
@@ -327,7 +327,7 @@ module.exports.addCart = async (req, res) => {
                     {
                         item_id: body.item_id,
                         size: body.size,
-                        quantity: 1,
+                        quantity: body.quantity || 1, // Use provided quantity or default to 1
                         toppings: body.toppings?.map(t => ({
                             topping: t.topping,
                             topping_quantity: 1
@@ -346,7 +346,7 @@ module.exports.addCart = async (req, res) => {
         restaurantCart.items.push({
             item_id: body.item_id,
             size: body.size,
-            quantity: 1,
+            quantity: body.quantity || 1, // Use provided quantity or default to 1
             toppings: body.toppings?.map(t => ({
                 topping: t.topping,
                 topping_quantity: 1
