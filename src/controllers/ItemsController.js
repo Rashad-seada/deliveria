@@ -1,9 +1,6 @@
 const Cart = require("../models/Carts");
 const Item = require("../models/Items");
 const Restaurant = require("../models/Restaurants");
-const Cart = require("../models/Carts");
-const Item = require("../models/Items");
-const Restaurant = require("../models/Restaurants");
 const Order = require("../models/Orders");
 const mongoose = require("mongoose");
 const { not_select, checkIsOpen } = require("./global");
