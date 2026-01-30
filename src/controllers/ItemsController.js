@@ -1,6 +1,11 @@
 const Cart = require("../models/Carts");
 const Item = require("../models/Items");
 const Restaurant = require("../models/Restaurants");
+const Cart = require("../models/Carts");
+const Item = require("../models/Items");
+const Restaurant = require("../models/Restaurants");
+const Order = require("../models/Orders");
+const mongoose = require("mongoose");
 const { not_select, checkIsOpen } = require("./global");
 
 module.exports.createItem = async (req, res) => {
@@ -161,7 +166,9 @@ module.exports.updateItem = async (req, res) => {
 
 module.exports.getAllItemsForRestaurant = async (req, res, next) => {
     try {
-        const restaurant = await Restaurant.findById(req.params.restaurant_id).select(not_select.join(' '))
+        const restaurantId = req.params.restaurant_id;
+
+        const restaurant = await Restaurant.findById(restaurantId).select(not_select.join(' '))
         const is_open = checkIsOpen(restaurant.open_hour, restaurant.close_hour);
 
         const restaurantWithStatus = {
@@ -173,26 +180,58 @@ module.exports.getAllItemsForRestaurant = async (req, res, next) => {
 
         if (req.params.item_category_id === "all") {
             category = {
-                restaurant_id: req.params.restaurant_id,
+                restaurant_id: restaurantId,
             }
         } else {
             category = {
-                restaurant_id: req.params.restaurant_id,
+                restaurant_id: restaurantId,
                 item_category: req.params.item_category_id
             }
         }
 
-        const items = await Item.find(category)
+        // 1. Calculate Top Selling Items for this restaurant
+        // Aggregate orders to count how many times each item has been sold
+        const topSellingItems = await Order.aggregate([
+            { $unwind: "$orders" },
+            {
+                $match: {
+                    "orders.restaurant_id": new mongoose.Types.ObjectId(restaurantId),
+                    "order_status": "Delivered" // Only count delivered orders for accuracy
+                }
+            },
+            { $unwind: "$orders.items" },
+            {
+                $group: {
+                    _id: "$orders.items.item_details.item_id", // Group by Item ID string
+                    total_sold: { $sum: "$orders.items.size_details.quantity" } // Sum quantity
+                }
+            },
+            { $sort: { total_sold: -1 } }, // Sort descending
+            { $limit: 10 } // Get top 10
+        ]);
+
+        // Create a set of best seller IDs for O(1) lookup
+        const bestSellerIds = new Set(topSellingItems.map(item => item._id.toString()));
+
+        // Fetch items and mark best sellers
+        const items = await Item.find(category).lean();
+
+        const itemsWithBestSeller = items.map(item => ({
+            ...item,
+            is_best_seller: bestSellerIds.has(item._id.toString())
+        }));
+
         return res.status(200).json({
             response: {
                 restaurant: restaurantWithStatus,
-                items: items
+                items: itemsWithBestSeller
             }
         })
     } catch (error) {
-        console.log(error)
-        return res.json({
-            message: "Error"
+        console.error("getAllItemsForRestaurant error:", error);
+        return res.status(500).json({
+            message: "Error fetching items",
+            error: error.message
         })
     }
 }
