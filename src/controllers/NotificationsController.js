@@ -7,7 +7,7 @@ const { sendNotification } = require("./global");
 
 module.exports.createNotification = async (req, res, next) => {
     try {
-        await sendNotification(req.body.ids, req.decoded.id, req.body.message.trim());
+        await sendNotification(req.body.ids, req.decoded.id, req.body.message.trim(), req.body.title ? req.body.title.trim() : "Deliveria");
 
         return res.status(200).json({ message: "Done send notification" });
     } catch (error) {

@@ -41,8 +41,8 @@ module.exports.checkIsOpen = (open_hour, close_hour) => {
     return is_open;
 }
 
-module.exports.sendNotification = async (ids, sender_id, message) => {
-    console.log(`[DEBUG Notification] Request to send notification to ${ids.length} users. Message: "${message}"`);
+module.exports.sendNotification = async (ids, sender_id, message, title = "Deliveria") => {
+    console.log(`[DEBUG Notification] Request to send notification to ${ids.length} users. Title: "${title}", Message: "${message}"`);
     // Process all notifications in parallel so one failure doesn't stop the rest
     const promises = ids.map(async (id) => {
         try {
@@ -56,13 +56,14 @@ module.exports.sendNotification = async (ids, sender_id, message) => {
                 user_id: id,
                 sender_id: sender_id,
                 message: message.trim(),
+                title: title.trim(),
                 seen: false
             });
 
             await notification.save();
             console.log(`[DEBUG Notification] Saved to DB for user ${id}. Now sending to Firebase...`);
 
-            const firebaseResult = await sendFirebaseNotifyRequest(id, message.trim());
+            const firebaseResult = await sendFirebaseNotifyRequest(id, message.trim(), title.trim());
             console.log(`[DEBUG Notification] Firebase result for user ${id}: ${firebaseResult ? 'SUCCESS' : 'FAILED'}`);
         } catch (error) {
             console.error(`[DEBUG Notification] ERROR sending to user ${id}:`, error);
@@ -74,7 +75,7 @@ module.exports.sendNotification = async (ids, sender_id, message) => {
     console.log('[DEBUG Notification] Finished processing all recipients.');
 }
 
-async function sendFirebaseNotifyRequest(id, body) {
+async function sendFirebaseNotifyRequest(id, body, title = "Deliveria") {
     const admin = require('firebase-admin');
 
     if (!admin.apps.length) {
@@ -114,7 +115,7 @@ async function sendFirebaseNotifyRequest(id, body) {
 
         const message = {
             notification: {
-                title: "Dliveria",
+                title: title,
                 body: body,
             },
             android: {

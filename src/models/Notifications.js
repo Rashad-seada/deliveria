@@ -5,7 +5,7 @@ const notificationSchema = new Schema(
     {
         title: {
             type: String,
-            default: "Notification"
+            default: "Deliveria"
         },
         message: {
             type: String,
