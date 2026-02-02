@@ -97,15 +97,25 @@ module.exports.getAgents = async (req, res) => {
     try {
         const agents = await Agent.find().select('-password'); // Exclude passwords
 
-        // Optionally, enrich with order data if needed, but keep it lean
         const agentsWithOrders = await Promise.all(
             agents.map(async (agent) => {
-                const orders = await Order.find({ delivery_id: agent._id })
-                    .populate('user_id', 'first_name last_name')
-                    .populate('orders.restaurant_id', 'logo name phone');
+                // Fix: Use 'agent.agent_id' instead of 'delivery_id'
+                // Filter for ACTIVE orders only (what they are carrying/delivering right now)
+                const activeOrders = await Order.find({
+                    "agent.agent_id": agent._id,
+                    "order_status": {
+                        $in: ['On the Way', 'Packed / Ready for Pickup', 'Approved / Preparing']
+                    }
+                })
+                    .select('order_status final_price order_id') // Optimize: only needed fields
+                    .lean();
+
                 return {
                     ...agent.toObject(),
-                    orders, // This can be a large object, consider summarizing
+                    active_orders_count: activeOrders.length,
+                    active_orders: activeOrders, // Optional: return the actual active orders list
+                    // Removed 'orders' (history) to prevent payload bloat. 
+                    // Use /agents/:id/orders?status=history for full history.
                 };
             })
         );
