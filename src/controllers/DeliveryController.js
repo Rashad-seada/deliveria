@@ -38,17 +38,46 @@ module.exports.startOrderTimers = (order) => {
 // Get all orders that are ready for pickup and not yet assigned to any agent
 module.exports.getAvailableOrders = async (req, res) => {
     try {
-        const orders = await Order.find({
+        const { date, startDate, endDate, payment_type, order_type } = req.query;
+
+        let query = {
             delivery_type: "Agent",
             "agent.agent_id": null, // Correctly check if an agent is assigned
             status: "Ready for Delivery" // Only show orders that are ready for delivery
-        }).populate({
+        };
+
+        // --- Filter: Date Range ---
+        if (startDate && endDate) {
+            query.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+            };
+        } else if (date) {
+            // Specific single date
+            query.createdAt = {
+                $gte: new Date(new Date(date).setHours(0, 0, 0, 0)),
+                $lte: new Date(new Date(date).setHours(23, 59, 59, 999))
+            };
+        }
+
+        // --- Filter: Payment Type ---
+        if (payment_type) {
+            query.payment_method = payment_type; // "Cash", "Visa", etc.
+        }
+
+        // --- Filter: Order Type ---
+        if (order_type) {
+            // "Single" or "Multi"
+            query.order_type = order_type;
+        }
+
+        const orders = await Order.find(query).populate({
             path: 'user_id',
             select: 'first_name last_name'
         }).populate({
             path: 'orders.restaurant_id',
             select: 'logo name phone'
-        });
+        }).sort({ createdAt: -1 }); // Newest first
 
         if (!orders || orders.length === 0) {
             return res.status(200).json({ message: "There are no available orders at the moment.", orders: [] });
@@ -64,16 +93,50 @@ module.exports.getAvailableOrders = async (req, res) => {
 // Get all orders assigned to the currently logged-in agent
 module.exports.getMyOrders = async (req, res) => {
     try {
-        const orders = await Order.find({
+        const { date, startDate, endDate, status, payment_type } = req.query;
+
+        let query = {
             "agent.agent_id": req.decoded.id, // Correctly find orders by agent ID
-            status: { $nin: ["Canceled", "Completed"] } // إظهار الطلبات التي تم تسليمها أيضاً
-        }).populate({
+            status: { $nin: ["Canceled", "Completed"] } // Default: Show active + delivered (but usually we might want to separate)
+        };
+
+        // If status is specifically requested (e.g. ?status=Delivered or ?status=active)
+        if (status) {
+            if (status === 'active') {
+                query.status = { $in: ["Accepted", "On the way", "Pick up"] };
+            } else if (status === 'history') {
+                query.status = { $in: ["Delivered", "Completed", "Canceled"] };
+            } else {
+                query.status = status;
+            }
+        }
+
+        // --- Filter: Date Range ---
+        if (startDate && endDate) {
+            query.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+            };
+        } else if (date) {
+            query.createdAt = {
+                $gte: new Date(new Date(date).setHours(0, 0, 0, 0)),
+                $lte: new Date(new Date(date).setHours(23, 59, 59, 999))
+            };
+        }
+
+        // --- Filter: Payment Type ---
+        if (payment_type) {
+            query.payment_method = payment_type;
+        }
+
+        const orders = await Order.find(query).populate({
             path: 'user_id',
             select: 'first_name last_name'
         }).populate({
             path: 'orders.restaurant_id',
             select: 'logo name phone'
-        });
+        }).sort({ createdAt: -1 });
+
         return res.status(200).json({ orders });
     } catch (error) {
         console.log(error);
