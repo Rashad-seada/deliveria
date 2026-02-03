@@ -30,8 +30,67 @@ const handleErrorResponse = (res, error, message = "An error occurred.", statusC
 
 module.exports.getAllOrders = async (req, res) => {
     try {
-        const orders = await Order.find().populate('user_id', 'first_name last_name').sort({ createdAt: -1 });
-        return res.json({ orders });
+        const {
+            startDate, endDate, date,
+            status, payment_type, order_type, delivery_type,
+            user_id, agent_id, restaurant_id
+        } = req.query;
+
+        let query = {};
+
+        // --- Date Filter ---
+        if (startDate && endDate) {
+            query.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+            };
+        } else if (date) {
+            query.createdAt = {
+                $gte: new Date(new Date(date).setHours(0, 0, 0, 0)),
+                $lte: new Date(new Date(date).setHours(23, 59, 59, 999))
+            };
+        }
+
+        // --- Status Filter ---
+        // Supports single status like ?status=Delivered
+        // or multiple query param like ?status=Delivered&status=Canceled (handled by Express as array) not standard usually, 
+        // usually ?status=Delivered,Canceled is better if custom parsing, but let's stick to simple match or $in if array.
+        if (status) {
+            if (Array.isArray(status)) {
+                query.status = { $in: status };
+            } else if (status.includes(',')) {
+                query.status = { $in: status.split(',') };
+            } else {
+                query.status = status;
+            }
+        }
+
+        // --- ID Filters ---
+        if (user_id) query.user_id = user_id;
+
+        if (agent_id) query['agent.agent_id'] = agent_id;
+
+        // Filter if the order contains a specific restaurant (searching inside sub-orders array)
+        if (restaurant_id) {
+            query['orders.restaurant_id'] = restaurant_id;
+        }
+
+        // --- Type Filters ---
+        if (payment_type) query.payment_type = payment_type;
+        if (order_type) query.order_type = order_type;
+        if (delivery_type) query.delivery_type = delivery_type;
+
+        // Execute Query
+        const orders = await Order.find(query)
+            .populate('user_id', 'first_name last_name phone')
+            .populate('orders.restaurant_id', 'name logo phone')
+            .populate('agent.agent_id', 'name phone')
+            .sort({ createdAt: -1 });
+
+        return res.json({
+            count: orders.length,
+            orders
+        });
     } catch (error) {
         return handleErrorResponse(res, error, "Error retrieving all orders.");
     }
