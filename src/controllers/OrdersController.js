@@ -76,7 +76,7 @@ module.exports.getAllOrders = async (req, res) => {
         }
 
         // --- Type Filters ---
-        if (payment_type) query.payment_type = payment_type;
+        if (payment_type) query.payment_type = { $regex: new RegExp(`^${payment_type}$`, 'i') };
         if (order_type) query.order_type = order_type;
         if (delivery_type) query.delivery_type = delivery_type;
 

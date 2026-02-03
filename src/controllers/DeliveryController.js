@@ -62,7 +62,7 @@ module.exports.getAvailableOrders = async (req, res) => {
 
         // --- Filter: Payment Type ---
         if (payment_type) {
-            query.payment_method = payment_type; // "Cash", "Visa", etc.
+            query.payment_type = { $regex: new RegExp(`^${payment_type}$`, 'i') }; // Case-insensitive exact match
         }
 
         // --- Filter: Order Type ---
@@ -126,7 +126,7 @@ module.exports.getMyOrders = async (req, res) => {
 
         // --- Filter: Payment Type ---
         if (payment_type) {
-            query.payment_method = payment_type;
+            query.payment_type = { $regex: new RegExp(`^${payment_type}$`, 'i') };
         }
 
         const orders = await Order.find(query).populate({
