@@ -293,7 +293,24 @@ module.exports.createOrder = async (req, res) => {
         }
 
         // Clear the user's cart after successful order creation
+        const userCart = await Cart.findOne({ user_id: userId });
+        const appliedCouponId = userCart?.coupon_code_id;
         await Cart.findOneAndDelete({ user_id: userId });
+
+        // --- Mark Coupon Code as Used ---
+        if (appliedCouponId) {
+            try {
+                const CouponCode = require("../models/CouponCodes");
+                await CouponCode.findByIdAndUpdate(appliedCouponId, {
+                    $push: { users_used: userId }
+                });
+                console.log(`Coupon ${appliedCouponId} marked as used by user ${userId}`);
+            } catch (couponErr) {
+                console.error("Failed to mark coupon as used:", couponErr);
+                // Don't fail the order if coupon update fails
+            }
+        }
+        // --- End Mark Coupon Code ---
 
         // Notify all involved restaurants
         // Assuming sendNotification can take an array of restaurant_ids and also the user_id for context
