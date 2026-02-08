@@ -136,6 +136,7 @@ async function sendFirebaseNotifyRequest(id, body, title = "Deliveria") {
             return false;
         }
     } else {
+        console.warn(`[DEBUG Firebase] Token was falsy (empty string?): '${token}'`);
         return false;
     }
 }
