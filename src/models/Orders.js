@@ -7,10 +7,14 @@ require('./Restaurants'); // This ensures the Restaurant model is registered bef
 // Order status enum based on state machine
 const ORDER_STATUS = {
   WAITING_FOR_APPROVAL: 'Waiting for Approval',
+  ACCEPTED: 'Accepted',
   APPROVED_PREPARING: 'Approved / Preparing',
   PACKED_READY_FOR_PICKUP: 'Packed / Ready for Pickup',
-  ON_THE_WAY: 'On the Way',
+  READY_FOR_DELIVERY: 'Ready for Delivery', // Added for clarity
+  PICK_UP: 'Pick up',
+  ON_THE_WAY: 'On the way', // Fixed casing to match controller
   DELIVERED: 'Delivered',
+  COMPLETED: 'Completed',
   CANCELED: 'Canceled'
 };
 
