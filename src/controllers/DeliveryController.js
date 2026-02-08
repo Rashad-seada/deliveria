@@ -344,8 +344,8 @@ module.exports.updateOrderStatus = async (req, res) => {
         });
 
     } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Error updating order status." });
+        console.log("Error in updateOrderStatus:", error);
+        return res.status(500).json({ message: "Error updating order status.", error: error.message, stack: error.stack });
     }
 };
 

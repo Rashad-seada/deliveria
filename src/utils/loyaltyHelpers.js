@@ -102,7 +102,11 @@ async function awardLoyaltyPoints(order) {
             return { success: false, message: 'Invalid order or user' };
         }
 
-        const userId = order.user_id._id || order.user_id;
+        const userId = (order.user_id && order.user_id._id) ? order.user_id._id : order.user_id;
+
+        if (!userId) {
+            return { success: false, message: 'User ID missing from order' };
+        }
         const user = await User.findById(userId);
 
         if (!user) {
