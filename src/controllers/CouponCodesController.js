@@ -17,8 +17,24 @@ module.exports.createCouponCode = async (req, res) => {
             coupon_type
         } = req.body;
 
-        if (!code || !discount_type || !value || !expired_date) {
-            return res.status(400).json({ message: "Code, discount_type, value, and expired_date are required." });
+        if (!req.body) {
+            console.error("Missing/Empty req.body in createCouponCode");
+            return res.status(400).json({ message: "Request body is empty" });
+        }
+
+        console.log("createCouponCode received:", req.body);
+
+        const missingFields = [];
+        if (!code) missingFields.push('code');
+        if (!discount_type) missingFields.push('discount_type');
+        if (value === undefined || value === null) missingFields.push('value');
+        if (!expired_date) missingFields.push('expired_date');
+
+        if (missingFields.length > 0) {
+            return res.status(400).json({
+                message: `Missing required fields: ${missingFields.join(', ')}`,
+                received_keys: Object.keys(req.body)
+            });
         }
 
         const existingCode = await CouponCode.findOne({ code: code.toUpperCase() });
