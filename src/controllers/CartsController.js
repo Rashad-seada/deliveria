@@ -48,8 +48,9 @@ module.exports.getCart = async (req, res) => {
             // ✅ Self-Healing: If address_id exists but invalid (dangling), clear it
             if (!address) {
                 console.log(`Self-healing: Clearing invalid address_id ${account.address_id} for user ${id}`);
-                account.address_id = undefined;
-                await account.save();
+                console.log(`Self-healing: Clearing invalid address_id ${account.address_id} for user ${id}`);
+                await Model.findByIdAndUpdate(id, { $unset: { address_id: 1 } });
+                account.address_id = undefined; // Update in-memory object for consistency if needed
             }
         }
 
