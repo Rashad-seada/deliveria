@@ -679,7 +679,7 @@ module.exports.changeShowRestaurant = async (req, res) => {
         });
     } catch (error) {
         console.error("changeShowRestaurant error:", error);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
@@ -697,7 +697,7 @@ module.exports.changeShowInHomeRestaurant = async (req, res) => {
         });
     } catch (error) {
         console.error("changeShowInHomeRestaurant error:", error);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
@@ -715,7 +715,7 @@ module.exports.changeHaveDelivery = async (req, res) => {
         });
     } catch (error) {
         console.error("changeHaveDelivery error:", error);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
