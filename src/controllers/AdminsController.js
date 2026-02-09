@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const Admin = require("../models/Admin");
 const Agent = require("../models/Agents");
 const User = require("../models/Users");
-const User = require("../models/Users");
+
 const Order = require("../models/Orders");
 const { ORDER_STATUS } = require("../models/Orders");
 
