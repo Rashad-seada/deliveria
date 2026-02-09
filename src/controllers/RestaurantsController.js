@@ -943,6 +943,13 @@ module.exports.acceptOrder = async (req, res) => {
         // إرسال إشعار للمستخدم
         sendNotification([order.user_id], restaurantId, `Your order #${order.order_id} is now being prepared.`);
 
+        // Populate details for response
+        await order.populate([
+            { path: 'user_id', select: 'first_name last_name phone' },
+            { path: 'orders.restaurant_id', select: 'name logo phone' },
+            { path: 'orders.branch_id', select: 'name coordinates location_map phone address' }
+        ]);
+
         return res.status(200).json({ message: "Order accepted and is now being prepared.", order });
 
     } catch (error) {
@@ -997,6 +1004,13 @@ module.exports.readyOrderAgent = async (req, res) => {
         }
 
         const savedOrder = await order.save();
+
+        // Populate details for response
+        await savedOrder.populate([
+            { path: 'user_id', select: 'first_name last_name phone' },
+            { path: 'orders.restaurant_id', select: 'name logo phone' },
+            { path: 'orders.branch_id', select: 'name coordinates location_map phone address' }
+        ]);
 
         return res.status(200).json({ message: "Order status updated.", order: savedOrder });
 

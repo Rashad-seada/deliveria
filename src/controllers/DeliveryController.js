@@ -74,11 +74,14 @@ module.exports.getAvailableOrders = async (req, res) => {
 
         const orders = await Order.find(query).populate({
             path: 'user_id',
-            select: 'first_name last_name'
+            select: 'first_name last_name phone' // Added phone for agent convenience
         }).populate({
             path: 'orders.restaurant_id',
             select: 'logo name phone'
-        }).sort({ createdAt: -1 }); // Newest first
+        }).populate({
+            path: 'orders.branch_id',
+            select: 'name coordinates location_map phone address' // Populate branch details
+        }).sort({ createdAt: -1 });
 
         if (!orders || orders.length === 0) {
             return res.status(200).json({ message: "There are no available orders at the moment.", orders: [] });
@@ -132,10 +135,13 @@ module.exports.getMyOrders = async (req, res) => {
 
         const orders = await Order.find(query).populate({
             path: 'user_id',
-            select: 'first_name last_name'
+            select: 'first_name last_name phone'
         }).populate({
             path: 'orders.restaurant_id',
             select: 'logo name phone'
+        }).populate({
+            path: 'orders.branch_id',
+            select: 'name coordinates location_map phone address'
         }).sort({ createdAt: -1 });
 
         return res.status(200).json({ orders });
@@ -237,7 +243,10 @@ module.exports.acceptOrder = async (req, res) => {
                 status: newStatus, // "Accepted"
                 delivery_details: deliveryDetails
             }
-        }, { new: true, populate: ['user_id', 'orders.restaurant_id'] });
+        }, { new: true })
+            .populate({ path: 'user_id', select: 'first_name last_name phone' })
+            .populate({ path: 'orders.restaurant_id', select: 'name logo phone' })
+            .populate({ path: 'orders.branch_id', select: 'name coordinates location_map phone address' });
 
         sendNotification([updatedOrder.user_id], agentId, `Your order #${orderId.slice(-4)} has been accepted by a delivery agent.`);
 
