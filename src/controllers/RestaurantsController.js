@@ -928,7 +928,7 @@ module.exports.acceptOrder = async (req, res) => {
             return res.status(404).json({ message: "Sub-order not found for this restaurant" });
         }
 
-        if (subOrder.status !== "Pending Approval") {
+        if (subOrder.status !== "Waiting for Approval") {
             return res.status(400).json({ message: `Cannot accept order, status is already "${subOrder.status}"` });
         }
 
