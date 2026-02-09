@@ -35,7 +35,7 @@ module.exports.getDashboardStatistics = async (req, res) => {
 
         const deliveredOrders = orders.filter(o => o.order_status === ORDER_STATUS.DELIVERED).length;
         const canceledOrders = orders.filter(o => o.order_status === ORDER_STATUS.CANCELED).length;
-        const pendingOrders = orders.filter(o => [ORDER_STATUS.WAITING_FOR_APPROVAL, ORDER_STATUS.APPROVED_PREPARING, ORDER_STATUS.PACKED_READY_FOR_PICKUP, ORDER_STATUS.ON_THE_WAY].includes(o.order_status)).length;
+        const pendingOrders = orders.filter(o => [ORDER_STATUS.WAITING_FOR_APPROVAL, ORDER_STATUS.APPROVED_PREPARING, ORDER_STATUS.READY_FOR_DELIVERY, ORDER_STATUS.ON_THE_WAY].includes(o.order_status)).length;
 
         // New customers (first-time orders)
         const newCustomers = orders.reduce((acc, order) => {
@@ -221,7 +221,7 @@ module.exports.getOrderStatusDistribution = async (req, res) => {
         const distribution = {
             [ORDER_STATUS.WAITING_FOR_APPROVAL]: 0,
             [ORDER_STATUS.APPROVED_PREPARING]: 0,
-            [ORDER_STATUS.PACKED_READY_FOR_PICKUP]: 0,
+            [ORDER_STATUS.READY_FOR_DELIVERY]: 0,
             [ORDER_STATUS.ON_THE_WAY]: 0,
             [ORDER_STATUS.DELIVERED]: 0,
             [ORDER_STATUS.CANCELED]: 0

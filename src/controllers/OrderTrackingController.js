@@ -4,12 +4,12 @@
  */
 
 const Order = require("../models/Orders");
-const { 
-    isValidTransition, 
-    getAvailableTransitions, 
+const {
+    isValidTransition,
+    getAvailableTransitions,
     createStatusTimelineEntry,
     canCancelOrder,
-    ORDER_STATES 
+    ORDER_STATES
 } = require("../utils/orderStateMachine");
 const { sendNotification } = require("./global");
 
@@ -362,7 +362,7 @@ module.exports.assignDeliveryAgent = async (req, res) => {
             return res.status(404).json({ message: "Order not found" });
         }
 
-        if (order.order_status !== ORDER_STATES.PACKED_READY_FOR_PICKUP) {
+        if (order.order_status !== ORDER_STATES.READY_FOR_DELIVERY) {
             return res.status(400).json({
                 message: "Order must be ready for pickup before assigning agent"
             });

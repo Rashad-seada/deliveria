@@ -9,8 +9,7 @@ const ORDER_STATUS = {
   WAITING_FOR_APPROVAL: 'Waiting for Approval',
   ACCEPTED: 'Accepted',
   APPROVED_PREPARING: 'Approved / Preparing',
-  PACKED_READY_FOR_PICKUP: 'Packed / Ready for Pickup',
-  READY_FOR_DELIVERY: 'Ready for Delivery', // Added for clarity
+  READY_FOR_DELIVERY: 'Ready for Delivery',
   PICK_UP: 'Pick up',
   ON_THE_WAY: 'On the way', // Fixed casing to match controller
   DELIVERED: 'Delivered',

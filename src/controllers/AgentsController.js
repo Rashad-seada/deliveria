@@ -105,7 +105,7 @@ module.exports.getAgents = async (req, res) => {
                 const activeOrders = await Order.find({
                     "agent.agent_id": agent._id,
                     "order_status": {
-                        $in: [ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.PACKED_READY_FOR_PICKUP, ORDER_STATUS.APPROVED_PREPARING]
+                        $in: [ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.READY_FOR_DELIVERY, ORDER_STATUS.APPROVED_PREPARING]
                     }
                 })
                     .select('order_status final_price order_id') // Optimize: only needed fields
@@ -140,7 +140,7 @@ module.exports.getOrdersByAgentId = async (req, res) => {
             // "Delivering this moment": Orders that are assigned but not yet delivered or canceled
             // Typically: 'On the Way', 'Packed / Ready for Pickup', 'Approved / Preparing'
             query.order_status = {
-                $in: [ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.PACKED_READY_FOR_PICKUP, ORDER_STATUS.APPROVED_PREPARING]
+                $in: [ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.READY_FOR_DELIVERY, ORDER_STATUS.APPROVED_PREPARING]
             };
         } else if (status === 'history') {
             query.order_status = {
