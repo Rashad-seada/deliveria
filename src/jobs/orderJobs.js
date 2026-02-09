@@ -136,11 +136,29 @@ const startOrderProcessingJob = () => {
         await order.save();
         console.log(`[OrderJobs]   - Saved Order #${order.order_id}`);
       }
-    } catch (error) {
-      console.error('[OrderJobs] ERROR:', error);
+
+
+      // --- SELF-HEAL: Fix orders where order_status is 'Canceled' but legacy 'status' is not ---
+      // This handles cases where a previous job run or another process updated one but not the other.
+      const inconsistentOrders = await Order.find({
+      order_status: ORDER_STATUS.CANCELED,
+      status: { $ne: ORDER_STATUS.CANCELED }
+    }).limit(20);
+
+    if (inconsistentOrders.length > 0) {
+      console.log(`[OrderJobs] Found ${inconsistentOrders.length} inconsistent orders (order_status=Canceled, status!=Canceled). Fixing...`);
+      for (const order of inconsistentOrders) {
+        console.log(`[OrderJobs]   -> Fixing legacy status for Order #${order.order_id}`);
+        order.status = ORDER_STATUS.CANCELED;
+        await order.save();
+      }
     }
-    console.log('========================================');
-  });
+
+  } catch (error) {
+    console.error('[OrderJobs] ERROR:', error);
+  }
+  console.log('========================================');
+});
 };
 
 
