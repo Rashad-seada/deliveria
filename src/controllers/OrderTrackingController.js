@@ -195,6 +195,7 @@ module.exports.cancelOrder = async (req, res) => {
 
         // Update order status
         order.order_status = ORDER_STATES.CANCELED;
+        order.status = ORDER_STATES.CANCELED; // Sync legacy status
         order.cancellation_reason = reason || "";
         order.canceled_by = canceled_by;
         order.canceled_at = new Date();
