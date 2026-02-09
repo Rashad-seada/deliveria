@@ -70,6 +70,7 @@ module.exports.closeRestaurant = async (req, res) => {
                 },
                 {
                     order_status: ORDER_STATUS.CANCELED,
+                    status: ORDER_STATUS.CANCELED, // Sync legacy status
                     cancellation_reason: reason || 'Restaurant closed',
                     canceled_by: 'Restaurant',
                     canceled_at: new Date()
@@ -356,6 +357,7 @@ function scheduleRestaurantHours(restaurant) {
                 },
                 {
                     order_status: ORDER_STATUS.CANCELED,
+                    status: ORDER_STATUS.CANCELED, // Sync legacy status
                     cancellation_reason: 'Restaurant closed for the day',
                     canceled_by: 'Restaurant',
                     canceled_at: new Date()
