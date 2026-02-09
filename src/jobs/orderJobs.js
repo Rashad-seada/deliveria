@@ -4,6 +4,8 @@ const Admin = require('../models/Admin');
 const { sendNotification } = require('../controllers/global');
 const { notifyOrderDelay, notifyRestaurantDelay } = require('../utils/notificationManager');
 
+const { ORDER_STATUS } = require('../models/Orders');
+
 // This job runs every minute to check the status of pending orders.
 const startOrderProcessingJob = () => {
   console.log('[OrderJobs] Cron job registered. Will run every minute.');
@@ -29,7 +31,7 @@ const startOrderProcessingJob = () => {
       const cancelThresholdDate = new Date(now.getTime() - CANCEL_THRESHOLD_MINUTES * 60000);
 
       const pendingOrders = await Order.find({
-        order_status: { $in: ['Waiting for Approval', 'Approved / Preparing'] },
+        order_status: { $in: [ORDER_STATUS.WAITING_FOR_APPROVAL, ORDER_STATUS.APPROVED_PREPARING] },
         createdAt: { $lte: notifyThresholdDate }
       });
 
@@ -49,19 +51,20 @@ const startOrderProcessingJob = () => {
         const minutesPassed = (now - orderTime) / (1000 * 60);
         console.log(`[OrderJobs]   - Minutes passed: ${minutesPassed.toFixed(2)}`);
 
-        let allSubOrdersCanceled = false;
+        // FIX: Start with true, and set to false if we find any non-canceled sub-order
+        let allSubOrdersCanceled = true;
 
         for (let i = 0; i < order.orders.length; i++) {
           const subOrder = order.orders[i];
           console.log(`[OrderJobs]   - Sub-order [${i}] status: ${subOrder.status}`);
 
           // Check 'Waiting for Approval', 'Approved / Preparing'
-          if (['Waiting for Approval', 'Approved / Preparing'].includes(subOrder.status)) {
+          if ([ORDER_STATUS.WAITING_FOR_APPROVAL, ORDER_STATUS.APPROVED_PREPARING].includes(subOrder.status)) {
 
             // PRIORITY 1: Cancel if over cancellation threshold
             if (minutesPassed > CANCEL_THRESHOLD_MINUTES) {
               console.log(`[OrderJobs]     -> ACTION: Canceling sub-order ${i} (${minutesPassed.toFixed(2)}m > ${CANCEL_THRESHOLD_MINUTES}m)`);
-              subOrder.status = 'Canceled';
+              subOrder.status = ORDER_STATUS.CANCELED;
               subOrder.cancel_me = true;
 
               // Notify customer
@@ -93,19 +96,20 @@ const startOrderProcessingJob = () => {
             }
           }
 
-          // Re-check status after potential update
-          if (subOrder.status === 'Canceled') {
-            allSubOrdersCanceled = true;
+          // FIX: Re-check status. If ANY sub-order is NOT canceled, then the whole order is NOT fully canceled.
+          if (subOrder.status !== ORDER_STATUS.CANCELED) {
+            allSubOrdersCanceled = false;
           }
         }
 
         // If all sub-orders are canceled, cancel the main order
-        if (allSubOrdersCanceled && order.order_status !== 'Canceled') {
-          order.order_status = 'Canceled';
+        if (allSubOrdersCanceled && order.order_status !== ORDER_STATUS.CANCELED) {
+          order.order_status = ORDER_STATUS.CANCELED;
+          order.status = ORDER_STATUS.CANCELED; // Ensure legacy status is also updated
           order.canceled_by = 'System';
           order.canceled_at = new Date();
           order.status_timeline.push({
-            status: 'Canceled',
+            status: ORDER_STATUS.CANCELED,
             timestamp: new Date(),
             note: 'Auto-canceled by system (timeout)'
           });
@@ -119,14 +123,14 @@ const startOrderProcessingJob = () => {
         }
 
         // Recalculate totals if any change occurred (e.g. partial cancellation)
-        const activeSubOrders = order.orders.filter(so => so.status !== 'Canceled');
+        const activeSubOrders = order.orders.filter(so => so.status !== ORDER_STATUS.CANCELED);
         const newPriceWithoutDelivery = activeSubOrders.reduce((sum, so) => sum + (so.price_of_restaurant || 0), 0);
-        
+
         // Update price if it differs (meaning something was canceled)
         if (order.final_price_without_delivery_cost !== newPriceWithoutDelivery) {
-             console.log(`[OrderJobs]   -> ACTION: Updating price from ${order.final_price_without_delivery_cost} to ${newPriceWithoutDelivery} (due to partial cancellation)`);
-             order.final_price_without_delivery_cost = newPriceWithoutDelivery;
-             order.final_price = order.final_price_without_delivery_cost + (order.final_delivery_cost || 0);
+          console.log(`[OrderJobs]   -> ACTION: Updating price from ${order.final_price_without_delivery_cost} to ${newPriceWithoutDelivery} (due to partial cancellation)`);
+          order.final_price_without_delivery_cost = newPriceWithoutDelivery;
+          order.final_price = order.final_price_without_delivery_cost + (order.final_delivery_cost || 0);
         }
 
         await order.save();
