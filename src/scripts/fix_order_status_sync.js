@@ -5,7 +5,12 @@ require('dotenv').config();
 
 const fixInconsistentOrders = async () => {
     try {
-        await mongoose.connect(process.env.DB_URL);
+        const dbUrl = process.env.MONGO_URL || process.env.DB_URL;
+        if (!dbUrl) {
+            console.error('Error: No MongoDB connection string found (MONGO_URL or DB_URL).');
+            process.exit(1);
+        }
+        await mongoose.connect(dbUrl);
         console.log('Connected to DB');
 
         const inconsistentOrders = await Order.find({
