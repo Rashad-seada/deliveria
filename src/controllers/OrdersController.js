@@ -1,5 +1,6 @@
 
 const Order = require("../models/Orders");
+const { ORDER_STATUS } = require("../models/Orders");
 const CouponCode = require("../models/CouponCodes");
 const Cart = require("../models/Carts");
 const User = require("../models/Users");
@@ -233,7 +234,7 @@ module.exports.createOrder = async (req, res) => {
                 commission_percentage: commissionPercentage,
                 commission_amount: Math.round(commissionAmount * 100) / 100, // Round to 2 decimals
                 restaurant_net_amount: Math.round(restaurantNetAmount * 100) / 100,
-                status: "Waiting for Approval",
+                status: ORDER_STATUS.WAITING_FOR_APPROVAL,
                 cancel_me: false,
             };
         }));
@@ -255,7 +256,7 @@ module.exports.createOrder = async (req, res) => {
             total_restaurant_net: Math.round(totalRestaurantNet * 100) / 100,
             delivery_type: "Agent", // Defaulting to Agent delivery
             payment_type: payment_type,
-            status: "Waiting for Approval",
+            status: ORDER_STATUS.WAITING_FOR_APPROVAL,
             order_id: orderId,
             // Store loyalty discount info if applied
             ...(loyaltyDiscount > 0 && {

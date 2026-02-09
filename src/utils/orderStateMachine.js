@@ -4,13 +4,15 @@
  * Ensures orders follow a logical progression through states
  */
 
+const { ORDER_STATUS } = require("../models/Orders");
+
 const ORDER_STATES = {
-  WAITING_FOR_APPROVAL: 'Waiting for Approval',
-  APPROVED_PREPARING: 'Approved / Preparing',
-  PACKED_READY_FOR_PICKUP: 'Packed / Ready for Pickup',
-  ON_THE_WAY: 'On the Way',
-  DELIVERED: 'Delivered',
-  CANCELED: 'Canceled'
+  WAITING_FOR_APPROVAL: ORDER_STATUS.WAITING_FOR_APPROVAL,
+  APPROVED_PREPARING: ORDER_STATUS.APPROVED_PREPARING,
+  PACKED_READY_FOR_PICKUP: ORDER_STATUS.PACKED_READY_FOR_PICKUP,
+  ON_THE_WAY: ORDER_STATUS.ON_THE_WAY,
+  DELIVERED: ORDER_STATUS.DELIVERED,
+  CANCELED: ORDER_STATUS.CANCELED
 };
 
 // Valid state transitions - defines which states can transition to which states
@@ -119,14 +121,14 @@ function isOrderComplete(currentState) {
  */
 function validateStateMachine() {
   const allStates = Object.values(ORDER_STATES);
-  
+
   // Check that all states in VALID_TRANSITIONS exist
   for (const state of Object.keys(VALID_TRANSITIONS)) {
     if (!allStates.includes(state)) {
       console.error(`[OrderStateMachine] Invalid state in VALID_TRANSITIONS: ${state}`);
       return false;
     }
-    
+
     // Check that all target states exist
     for (const targetState of VALID_TRANSITIONS[state]) {
       if (!allStates.includes(targetState)) {
@@ -135,7 +137,7 @@ function validateStateMachine() {
       }
     }
   }
-  
+
   return true;
 }
 
@@ -156,7 +158,7 @@ function getStatusDescription(state) {
     [ORDER_STATES.DELIVERED]: 'Your order has been delivered',
     [ORDER_STATES.CANCELED]: 'Your order has been canceled'
   };
-  
+
   return descriptions[state] || 'Unknown status';
 }
 

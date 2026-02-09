@@ -5,7 +5,9 @@ const jwt = require('jsonwebtoken');
 const Admin = require("../models/Admin");
 const Agent = require("../models/Agents");
 const User = require("../models/Users");
+const User = require("../models/Users");
 const Order = require("../models/Orders");
+const { ORDER_STATUS } = require("../models/Orders");
 
 module.exports.createAdmin = async (req, res) => {
     const body = req.body;
@@ -110,7 +112,7 @@ module.exports.getDataOfApp = async (req, res, next) => {
             User.find({ ban: false }),
             Restaurant.find({ is_show: true }),
             Order.find({
-                status: { $ne: "Canceled" }
+                status: { $ne: ORDER_STATUS.CANCELED }
             })
         ]);
 
@@ -142,7 +144,7 @@ module.exports.getDataOfApp = async (req, res, next) => {
 module.exports.getAllOrders = async (req, res, next) => {
     try {
         const orders = await Order.find({
-            status: { $ne: "Canceled" }
+            status: { $ne: ORDER_STATUS.CANCELED }
         })
 
         return res.json({
@@ -173,8 +175,8 @@ async function getOrdersForLastNDays(days) {
         dayPromises.push(
             Order.find({
                 $or: [
-                    { status: "Completed" },
-                    { status: "Delivered" }
+                    { status: ORDER_STATUS.COMPLETED },
+                    { status: ORDER_STATUS.DELIVERED }
                 ],
                 createdAt: {
                     $gte: startOfDay,

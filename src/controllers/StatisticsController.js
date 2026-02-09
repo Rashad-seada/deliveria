@@ -7,6 +7,7 @@ const Order = require("../models/Orders");
 const Restaurant = require("../models/Restaurants");
 const Item = require("../models/Items");
 const User = require("../models/Users");
+const { ORDER_STATUS } = require("../models/Orders");
 
 /**
  * Gets overall dashboard statistics
@@ -14,7 +15,7 @@ const User = require("../models/Users");
 module.exports.getDashboardStatistics = async (req, res) => {
     try {
         const { restaurantId, startDate, endDate } = req.query;
-        
+
         let dateFilter = {};
         if (startDate && endDate) {
             dateFilter.createdAt = {
@@ -31,10 +32,10 @@ module.exports.getDashboardStatistics = async (req, res) => {
         const orders = await Order.find(query);
         const totalOrders = orders.length;
         const totalRevenue = orders.reduce((sum, order) => sum + (order.final_price || 0), 0);
-        
-        const deliveredOrders = orders.filter(o => o.order_status === 'Delivered').length;
-        const canceledOrders = orders.filter(o => o.order_status === 'Canceled').length;
-        const pendingOrders = orders.filter(o => ['Waiting for Approval', 'Approved / Preparing', 'Packed / Ready for Pickup', 'On the Way'].includes(o.order_status)).length;
+
+        const deliveredOrders = orders.filter(o => o.order_status === ORDER_STATUS.DELIVERED).length;
+        const canceledOrders = orders.filter(o => o.order_status === ORDER_STATUS.CANCELED).length;
+        const pendingOrders = orders.filter(o => [ORDER_STATUS.WAITING_FOR_APPROVAL, ORDER_STATUS.APPROVED_PREPARING, ORDER_STATUS.PACKED_READY_FOR_PICKUP, ORDER_STATUS.ON_THE_WAY].includes(o.order_status)).length;
 
         // New customers (first-time orders)
         const newCustomers = orders.reduce((acc, order) => {
@@ -81,7 +82,7 @@ module.exports.getRevenueReport = async (req, res) => {
             };
         }
 
-        let query = { ...dateFilter, order_status: 'Delivered' };
+        let query = { ...dateFilter, order_status: ORDER_STATUS.DELIVERED };
         if (restaurantId) {
             query["orders.restaurant_id"] = restaurantId;
         }
@@ -93,7 +94,7 @@ module.exports.getRevenueReport = async (req, res) => {
         orders.forEach(order => {
             let key;
             const date = new Date(order.createdAt);
-            
+
             switch (groupBy) {
                 case 'daily':
                     key = date.toISOString().split('T')[0];
@@ -162,7 +163,7 @@ module.exports.getTopSellingProducts = async (req, res) => {
                 subOrder.items.forEach(item => {
                     const itemId = item.item_details.item_id;
                     const itemName = item.item_details.name;
-                    
+
                     if (!itemCounts[itemId]) {
                         itemCounts[itemId] = {
                             item_id: itemId,
@@ -218,12 +219,12 @@ module.exports.getOrderStatusDistribution = async (req, res) => {
         const orders = await Order.find(query);
 
         const distribution = {
-            'Waiting for Approval': 0,
-            'Approved / Preparing': 0,
-            'Packed / Ready for Pickup': 0,
-            'On the Way': 0,
-            'Delivered': 0,
-            'Canceled': 0
+            [ORDER_STATUS.WAITING_FOR_APPROVAL]: 0,
+            [ORDER_STATUS.APPROVED_PREPARING]: 0,
+            [ORDER_STATUS.PACKED_READY_FOR_PICKUP]: 0,
+            [ORDER_STATUS.ON_THE_WAY]: 0,
+            [ORDER_STATUS.DELIVERED]: 0,
+            [ORDER_STATUS.CANCELED]: 0
         };
 
         orders.forEach(order => {
@@ -318,7 +319,7 @@ module.exports.getDeliveryPerformance = async (req, res) => {
             };
         }
 
-        let query = { ...dateFilter, order_status: 'Delivered' };
+        let query = { ...dateFilter, order_status: ORDER_STATUS.DELIVERED };
         if (restaurantId) {
             query["orders.restaurant_id"] = restaurantId;
         }
@@ -339,7 +340,7 @@ module.exports.getDeliveryPerformance = async (req, res) => {
         });
 
         const avgDeliveryTime = deliveryCount > 0 ? totalDeliveryTime / deliveryCount : 0;
-        const medianDeliveryTime = deliveryTimes.length > 0 
+        const medianDeliveryTime = deliveryTimes.length > 0
             ? deliveryTimes.sort((a, b) => a - b)[Math.floor(deliveryTimes.length / 2)]
             : 0;
 
@@ -368,7 +369,7 @@ module.exports.exportReport = async (req, res) => {
 
         switch (reportType) {
             case 'orders':
-                let query = { order_status: 'Delivered' };
+                let query = { order_status: ORDER_STATUS.DELIVERED };
                 if (restaurantId) query["orders.restaurant_id"] = restaurantId;
                 if (startDate && endDate) {
                     query.createdAt = {
@@ -376,7 +377,7 @@ module.exports.exportReport = async (req, res) => {
                         $lte: new Date(endDate)
                     };
                 }
-                
+
                 const orders = await Order.find(query)
                     .populate('user_id', 'first_name last_name')
                     .populate('orders.restaurant_id', 'name');

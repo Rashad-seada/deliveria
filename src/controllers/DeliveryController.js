@@ -1,5 +1,6 @@
 
 const Order = require("../models/Orders");
+const { ORDER_STATUS } = require("../models/Orders");
 const Agent = require("../models/Agents");
 const User = require("../models/Users");
 const Restaurant = require("../models/Restaurants");
@@ -19,7 +20,7 @@ module.exports.startOrderTimers = (order) => {
             const currentOrder = await Order.findById(order._id);
             // This timer checks if an order is waiting for an agent for too long.
             // It should only trigger if the order is still "Ready for Delivery".
-            if (currentOrder && currentOrder.status === "Ready for Delivery") {
+            if (currentOrder && currentOrder.status === ORDER_STATUS.READY_FOR_DELIVERY) {
                 const admins = await Admin.find().select('_id');
                 const adminIds = admins.map(admin => admin._id);
                 sendNotification(adminIds, currentOrder.user_id, `Order #${order._id.toString().slice(-4)} has been waiting for an agent for 25 minutes.`);
@@ -43,7 +44,7 @@ module.exports.getAvailableOrders = async (req, res) => {
         let query = {
             delivery_type: "Agent",
             "agent.agent_id": null, // Correctly check if an agent is assigned
-            status: "Ready for Delivery" // Only show orders that are ready for delivery
+            status: ORDER_STATUS.READY_FOR_DELIVERY // Only show orders that are ready for delivery
         };
 
         // --- Filter: Date Range ---
@@ -97,15 +98,15 @@ module.exports.getMyOrders = async (req, res) => {
 
         let query = {
             "agent.agent_id": req.decoded.id, // Correctly find orders by agent ID
-            status: { $nin: ["Canceled", "Completed"] } // Default: Show active + delivered (but usually we might want to separate)
+            status: { $nin: [ORDER_STATUS.CANCELED, ORDER_STATUS.COMPLETED] } // Default: Show active + delivered (but usually we might want to separate)
         };
 
         // If status is specifically requested (e.g. ?status=Delivered or ?status=active)
         if (status) {
             if (status === 'active') {
-                query.status = { $in: ["Accepted", "On the way", "Pick up"] };
+                query.status = { $in: [ORDER_STATUS.ACCEPTED, ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.PICK_UP] };
             } else if (status === 'history') {
-                query.status = { $in: ["Delivered", "Completed", "Canceled"] };
+                query.status = { $in: [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELED] };
             } else {
                 query.status = status;
             }
@@ -159,7 +160,7 @@ module.exports.acceptOrder = async (req, res) => {
         // Fetch active orders for this agent to validate limits
         const ongoingOrdersList = await Order.find({
             "agent.agent_id": agentId,
-            status: { $nin: ["Completed", "Canceled", "Delivered"] }
+            status: { $nin: [ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELED, ORDER_STATUS.DELIVERED] }
         }).select('order_type');
 
         const currentSingle = ongoingOrdersList.filter(o => o.order_type === 'Single').length;
@@ -193,13 +194,13 @@ module.exports.acceptOrder = async (req, res) => {
             return res.status(400).json({ message: "This order has already been accepted by another agent." });
         }
 
-        if (order.status !== "Ready for Delivery") {
+        if (order.status !== ORDER_STATUS.READY_FOR_DELIVERY) {
             return res.status(400).json({ message: "This order is no longer available for acceptance." });
         }
 
         // The agent is accepting the order. The status should become "Accepted".
         // The restaurant will later change it to "Ready for pickup".
-        const newStatus = "Accepted";
+        const newStatus = ORDER_STATUS.ACCEPTED;
 
         const agent = await Agent.findById(agentId);
         if (!agent) {
@@ -261,10 +262,10 @@ module.exports.updateOrderStatus = async (req, res) => {
 
         // Standardize status
         if (status === "DELIVERED") {
-            status = "Delivered";
+            status = ORDER_STATUS.DELIVERED;
         }
 
-        const validStatuses = ["On the way", "Delivered", "Completed"];
+        const validStatuses = [ORDER_STATUS.ON_THE_WAY, ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({ message: "Invalid status update." });
         }
@@ -279,9 +280,9 @@ module.exports.updateOrderStatus = async (req, res) => {
 
         // --- منطق التحقق من تسلسل الحالات ---
         const allowedTransitions = {
-            "Accepted": ["On the way"], // Agent has picked up the order and is heading to the customer.
-            "On the way": ["Delivered"],
-            "Delivered": ["Completed"]
+            [ORDER_STATUS.ACCEPTED]: [ORDER_STATUS.ON_THE_WAY], // Agent has picked up the order and is heading to the customer.
+            [ORDER_STATUS.ON_THE_WAY]: [ORDER_STATUS.DELIVERED],
+            [ORDER_STATUS.DELIVERED]: [ORDER_STATUS.COMPLETED]
         };
 
         const currentStatus = order.status;
@@ -300,18 +301,18 @@ module.exports.updateOrderStatus = async (req, res) => {
 
         // Update the status of all sub-orders
         order.orders.forEach(subOrder => {
-            if (subOrder.status !== "Canceled") {
+            if (subOrder.status !== ORDER_STATUS.CANCELED) {
                 subOrder.status = status;
             }
         });
 
         // تحديث أوقات الاستلام والتوصيل
-        if (status === "Pick up") order.agent.pickup_time = new Date();
-        if (status === "Delivered") order.agent.delivery_time = new Date();
+        if (status === ORDER_STATUS.PICK_UP) order.agent.pickup_time = new Date();
+        if (status === ORDER_STATUS.DELIVERED) order.agent.delivery_time = new Date();
 
         // --- التحسين: توحيد حالة الطلب الرئيسية ---
-        if (status === "Delivered") {
-            order.order_status = "Delivered";
+        if (status === ORDER_STATUS.DELIVERED) {
+            order.order_status = ORDER_STATUS.DELIVERED;
 
             // --- New Loyalty Points System ---
             try {
@@ -326,8 +327,8 @@ module.exports.updateOrderStatus = async (req, res) => {
                 // Don't fail the order status update if loyalty fails
             }
             // --- End Loyalty Points System ---
-        } else if (status === "On the way") {
-            order.order_status = "On the way";
+        } else if (status === ORDER_STATUS.ON_THE_WAY) {
+            order.order_status = ORDER_STATUS.ON_THE_WAY;
         }
 
 
@@ -366,7 +367,7 @@ exports.updateAgentLocation = async (req, res) => {
         await agent.save();
 
         // If agent has an active order, update delivery details
-        const activeOrder = await Order.findOne({ "agent.agent_id": agentId, status: { $in: ["Accepted", "Pick up", "On the way"] } });
+        const activeOrder = await Order.findOne({ "agent.agent_id": agentId, status: { $in: [ORDER_STATUS.ACCEPTED, ORDER_STATUS.PICK_UP, ORDER_STATUS.ON_THE_WAY] } });
 
         // --- التحسين: التحقق من الموقع الحقيقي قبل إعادة الحساب ---
         const isRealLocation = latitude !== 0 || longitude !== 0;

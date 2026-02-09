@@ -14,6 +14,7 @@ const { startOrderTimers } = require("./DeliveryController");
 const { setTimeout } = require('timers/promises');
 const mongoose = require("mongoose");
 const Order = require("../models/Orders");
+const { ORDER_STATUS } = require("../models/Orders");
 const Item = require("../models/Items");
 
 // دالة استخراج الإحداثيات من أي رابط Google Maps
@@ -928,14 +929,14 @@ module.exports.acceptOrder = async (req, res) => {
             return res.status(404).json({ message: "Sub-order not found for this restaurant" });
         }
 
-        if (subOrder.status !== "Waiting for Approval") {
+        if (subOrder.status !== ORDER_STATUS.WAITING_FOR_APPROVAL) {
             return res.status(400).json({ message: `Cannot accept order, status is already "${subOrder.status}"` });
         }
 
         // تحديث حالة الطلب الفرعي إلى "جاري التجهيز"
-        subOrder.status = "Preparing";
-        order.status = "Preparing"; // تحديث الحالة الرئيسية أيضاً
-        order.order_status = "Preparing";
+        subOrder.status = ORDER_STATUS.APPROVED_PREPARING;
+        order.status = ORDER_STATUS.APPROVED_PREPARING; // تحديث الحالة الرئيسية أيضاً
+        order.order_status = ORDER_STATUS.APPROVED_PREPARING;
 
         await order.save();
 
@@ -970,20 +971,20 @@ module.exports.readyOrderAgent = async (req, res) => {
             return res.status(404).json({ message: "Sub-order not found for this restaurant" });
         }
 
-        if (subOrder.status !== "Preparing") {
+        if (subOrder.status !== ORDER_STATUS.APPROVED_PREPARING) {
             return res.status(400).json({ message: `Cannot mark order as ready, status is already "${subOrder.status}"` });
         }
 
         // Update the specific sub-order status
-        subOrder.status = "Ready for Delivery";
+        subOrder.status = ORDER_STATUS.READY_FOR_DELIVERY;
 
         // Check if all other sub-orders are also ready
-        const allSubOrdersReady = order.orders.every(so => so.status === "Ready for Delivery" || so.status === "Canceled");
+        const allSubOrdersReady = order.orders.every(so => so.status === ORDER_STATUS.READY_FOR_DELIVERY || so.status === ORDER_STATUS.CANCELED);
 
         if (allSubOrdersReady) {
             // If all are ready, update the main order status
-            order.status = "Ready for Delivery";
-            order.order_status = "Ready for Delivery";
+            order.status = ORDER_STATUS.READY_FOR_DELIVERY;
+            order.order_status = ORDER_STATUS.READY_FOR_DELIVERY;
 
             // Notify the user that the entire order is ready for pickup
             sendNotification([order.user_id], restaurantId, `Your order #${order.order_id} is fully ready for pickup.`);
@@ -1100,7 +1101,7 @@ module.exports.getBestSellerRestaurants = async (req, res) => {
             // Step 1: Match only completed/delivered orders
             {
                 $match: {
-                    status: { $in: ["Completed", "Delivered"] }
+                    status: { $in: [ORDER_STATUS.COMPLETED, ORDER_STATUS.DELIVERED] }
                 }
             },
             // Step 2: Unwind the orders array to get individual restaurant orders
@@ -1108,7 +1109,7 @@ module.exports.getBestSellerRestaurants = async (req, res) => {
             // Step 3: Filter out canceled sub-orders
             {
                 $match: {
-                    "orders.status": { $nin: ["Canceled"] }
+                    "orders.status": { $nin: [ORDER_STATUS.CANCELED] }
                 }
             },
             // Step 4: Group by restaurant_id and count orders

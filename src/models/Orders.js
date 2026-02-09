@@ -202,4 +202,6 @@ orderSchema.index({ order_status: 1 });
 orderSchema.index({ "agent.agent_id": 1 });
 orderSchema.index({ "orders.restaurant_id": 1 });
 
-module.exports = mongoose.model("Order", orderSchema);
+const Order = mongoose.model("Order", orderSchema);
+module.exports = Order;
+module.exports.ORDER_STATUS = ORDER_STATUS;

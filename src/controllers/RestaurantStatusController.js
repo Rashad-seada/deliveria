@@ -6,6 +6,7 @@
 const Restaurant = require("../models/Restaurants");
 const Branch = require("../models/Branch");
 const Order = require("../models/Orders");
+const { ORDER_STATUS } = require("../models/Orders");
 const cron = require('node-cron');
 
 /**
@@ -65,10 +66,10 @@ module.exports.closeRestaurant = async (req, res) => {
             await Order.updateMany(
                 {
                     "orders.restaurant_id": restaurantId,
-                    order_status: { $in: ['Waiting for Approval', 'Approved / Preparing'] }
+                    order_status: { $in: [ORDER_STATUS.WAITING_FOR_APPROVAL, ORDER_STATUS.APPROVED_PREPARING] }
                 },
                 {
-                    order_status: 'Canceled',
+                    order_status: ORDER_STATUS.CANCELED,
                     cancellation_reason: reason || 'Restaurant closed',
                     canceled_by: 'Restaurant',
                     canceled_at: new Date()
@@ -346,21 +347,21 @@ function scheduleRestaurantHours(restaurant) {
         try {
             // Mark restaurant as closed
             await Restaurant.findByIdAndUpdate(restaurant._id, { is_closed: true });
-            
+
             // Cancel pending orders
             await Order.updateMany(
                 {
                     "orders.restaurant_id": restaurant._id,
-                    order_status: { $in: ['Waiting for Approval', 'Approved / Preparing'] }
+                    order_status: { $in: [ORDER_STATUS.WAITING_FOR_APPROVAL, ORDER_STATUS.APPROVED_PREPARING] }
                 },
                 {
-                    order_status: 'Canceled',
+                    order_status: ORDER_STATUS.CANCELED,
                     cancellation_reason: 'Restaurant closed for the day',
                     canceled_by: 'Restaurant',
                     canceled_at: new Date()
                 }
             );
-            
+
             console.log(`🔒 Restaurant ${restaurant.name} automatically closed`);
         } catch (error) {
             console.error(`Error auto-closing restaurant:`, error);
