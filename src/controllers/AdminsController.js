@@ -107,29 +107,49 @@ module.exports.login = async (req, res, next) => {
 
 module.exports.getDataOfApp = async (req, res, next) => {
     try {
-        // Execute all independent queries in parallel
-        const [users, restaurants, completedOrders] = await Promise.all([
-            User.find({ ban: false }),
-            Restaurant.find({ is_show: true }),
-            Order.find({
-                status: { $ne: ORDER_STATUS.CANCELED }
-            })
+        // parallels queries for efficiency
+        const [
+            activeUsersCount,
+            activeRestaurantsCount,
+            activeAgentsCount,
+            orderStats,
+            last7DaysOrders
+        ] = await Promise.all([
+            User.countDocuments({ ban: false }),
+            Restaurant.countDocuments({ is_show: true }),
+            Agent.countDocuments({ ban: false }), // New metric
+            Order.aggregate([
+                {
+                    $match: {
+                        status: { $in: [ORDER_STATUS.COMPLETED, ORDER_STATUS.DELIVERED] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalRevenue: { $sum: "$final_price" },
+                        count: { $sum: 1 }
+                    }
+                }
+            ]),
+            getOrdersForLastNDaysAggregate(7) // Optimized aggregation
         ]);
 
-        // Calculate total amount
-        const totalAmount = completedOrders.reduce((sum, order) => sum + order.final_price, 0);
+        const totalRevenue = orderStats.length > 0 ? orderStats[0].totalRevenue : 0;
+        const totalCompletedOrders = orderStats.length > 0 ? orderStats[0].count : 0;
 
-        // Get orders for the last 7 days including today
-        const last7DaysOrders = await getOrdersForLastNDays(7);
+        // Calculate net revenue (assuming 20%)
+        const netRevenue = totalRevenue * 0.20;
 
         return res.json({
-            total_orders: completedOrders.length,
-            net_revenue: totalAmount * .2, // Consider calculating this based on your business logic
-            active_users: users.length,
-            active_restaurants: restaurants.length,
-            total_amount: totalAmount,
-            orders_today: last7DaysOrders[0].length,
-            oders_of_last_week: last7DaysOrders.map(dayOrders => dayOrders.length)
+            total_orders: totalCompletedOrders,
+            net_revenue: netRevenue,
+            active_users: activeUsersCount,
+            active_restaurants: activeRestaurantsCount,
+            total_amount: totalRevenue,
+            orders_today: last7DaysOrders.length > 0 ? last7DaysOrders[last7DaysOrders.length - 1] : 0,
+            oders_of_last_week: last7DaysOrders,
+            active_agents: activeAgentsCount
         });
 
     } catch (error) {
@@ -159,32 +179,43 @@ module.exports.getAllOrders = async (req, res, next) => {
     }
 };
 
-// Helper function to get orders for the last N days
-async function getOrdersForLastNDays(days) {
-    const dayPromises = [];
+// Optimized helper function using aggregation for daily stats
+async function getOrdersForLastNDaysAggregate(days) {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
+    const startDate = new Date();
+    startDate.setDate(today.getDate() - (days - 1)); // Go back N-1 days to include today
+    startDate.setHours(0, 0, 0, 0);
+
+    const matchStage = {
+        $match: {
+            createdAt: { $gte: startDate, $lte: today },
+            status: { $in: [ORDER_STATUS.COMPLETED, ORDER_STATUS.DELIVERED] }
+        }
+    };
+
+    const groupStage = {
+        $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            count: { $sum: 1 }
+        }
+    };
+
+    const sortStage = { $sort: { _id: 1 } };
+
+    const dailyStats = await Order.aggregate([matchStage, groupStage, sortStage]);
+
+    // Map results to a continuous array of counts, filling missing days with 0
+    const result = [];
     for (let i = 0; i < days; i++) {
-        const startOfDay = new Date();
-        startOfDay.setDate(startOfDay.getDate() - i);
-        startOfDay.setHours(0, 0, 0, 0);
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + i);
+        const dateString = d.toISOString().split('T')[0];
 
-        const endOfDay = new Date();
-        endOfDay.setDate(endOfDay.getDate() - i);
-        endOfDay.setHours(23, 59, 59, 999);
-
-        dayPromises.push(
-            Order.find({
-                $or: [
-                    { status: ORDER_STATUS.COMPLETED },
-                    { status: ORDER_STATUS.DELIVERED }
-                ],
-                createdAt: {
-                    $gte: startOfDay,
-                    $lte: endOfDay
-                }
-            })
-        );
+        const stat = dailyStats.find(s => s._id === dateString);
+        result.push(stat ? stat.count : 0);
     }
 
-    return Promise.all(dayPromises);
+    return result;
 }
