@@ -164,6 +164,20 @@ const orderSchema = new Schema(
     delivery_type: String,
     payment_type: String,
 
+    // Paymob payment tracking
+    payment: {
+      payment_status: {
+        type: String,
+        enum: ['pending', 'paid', 'failed', 'refunded'],
+        default: 'pending'
+      },
+      paymob_order_id: Number,
+      paymob_transaction_id: Number,
+      amount_cents: Number,
+      paid_at: Date,
+      failure_reason: String
+    },
+
     // Cancel reason if order was canceled
     cancellation_reason: String,
     canceled_by: { type: String, enum: ["User", "Restaurant", "Admin", "System"] },
