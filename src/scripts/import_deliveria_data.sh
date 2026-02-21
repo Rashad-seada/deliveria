@@ -40,7 +40,7 @@ echo "📥 2. Restoring MongoDB database..."
 docker cp "./db_backup.archive" "$DB_CONTAINER:/data/db/"
 
 # Run mongorestore inside the container (using --drop to replace existing empty data)
-docker exec -it "$DB_CONTAINER" sh -c "mongorestore --username $DB_USER --password $DB_PASS --authenticationDatabase admin --archive=/data/db/db_backup.archive --gzip --drop"
+docker exec -t "$DB_CONTAINER" sh -c "mongorestore --username $DB_USER --password $DB_PASS --authenticationDatabase admin --archive=/data/db/db_backup.archive --gzip --drop"
 
 # Clean up from container
 docker exec -it "$DB_CONTAINER" rm -f /data/db/db_backup.archive
