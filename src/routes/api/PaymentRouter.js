@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const paymentController = require("../../controllers/PaymentController");
-const { checkToken } = require("../../middleware/checkToken");
+const { checkToken } = require("../../auth/token_validation");
 
 // Public webhook — Paymob calls this after each transaction
 // No auth token required (verified via HMAC instead)
