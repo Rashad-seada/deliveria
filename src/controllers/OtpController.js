@@ -25,10 +25,13 @@ function generateOTP(length = OTP_LENGTH) {
 }
 
 /**
- * Send OTP via BeOn SDK
- * Uses WhatsApp as primary channel with SMS fallback
+ * Send OTP via BeOn REST API
+ * Endpoint: POST https://v3.api.beon.chat/api/v3/messages/otp
+ * Auth: beon-token header
+ * Body: multipart/form-data
+ * Note: BeOn generates and sends the OTP code itself.
  */
-async function sendViaBeOn(phone, code, channel = 'whatsapp') {
+async function sendViaBeOn(phone, reference, channel = 'sms') {
     const beonApiKey = process.env.BEON_API_KEY;
 
     if (!beonApiKey) {
@@ -36,27 +39,41 @@ async function sendViaBeOn(phone, code, channel = 'whatsapp') {
         throw new Error('BEON_API_KEY is not configured on the server.');
     }
 
-    try {
-        // Dynamic import for beon-sdk (installed via npm)
-        const beon = require('beon-sdk');
+    const beonApiUrl = 'https://v3.api.beon.chat/api/v3/messages/otp';
 
-        console.log(`📤 Attempting to send OTP via BeOn (${channel}) to ${phone.replace(/.(?=.{4})/g, '*')}...`);
+    // Build multipart/form-data body
+    const formData = new FormData();
+    formData.append('phoneNumber', phone);
+    formData.append('name', 'User');     // Optional: can be customized later
+    formData.append('type', channel === 'whatsapp' ? 'whatsapp' : 'sms');
+    formData.append('otp_length', '6');
+    formData.append('reference', reference); // Used to identify this request
 
-        const result = await beon.sendOtp({
-            phone: phone,
-            channel: channel,
-            code: parseInt(code),
-        });
+    console.log(`📤 Sending OTP via BeOn (${channel}) to ${phone.replace(/.(?=.{4})/g, '*')} | ref: ${reference}`);
 
-        console.log(`📱 BeOn OTP send result (${channel}):`, JSON.stringify(result));
+    const response = await fetch(beonApiUrl, {
+        method: 'POST',
+        headers: {
+            'beon-token': beonApiKey,
+        },
+        body: formData,
+    });
 
-        return result;
-    } catch (error) {
-        console.error(`❌ BeOn OTP send failed (${channel}):`, error.message);
-        console.error('   Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-        throw error;
+    const result = await response.json().catch(() => ({}));
+
+    console.log(`📱 BeOn API response (${channel}) [${response.status}]:`, JSON.stringify(result));
+
+    if (!response.ok) {
+        throw new Error(`BeOn API error ${response.status}: ${result?.message || JSON.stringify(result)}`);
     }
+
+    // BeOn returns the generated OTP code inside result (e.g. result.data.otp or result.otp)
+    // Log all keys so we can find the OTP field if needed
+    console.log('📦 BeOn response keys:', Object.keys(result));
+
+    return result;
 }
+
 
 // ============================================================
 // POST /otp/send
@@ -91,27 +108,28 @@ module.exports.sendOtp = async (req, res) => {
             }
         }
 
-        // Generate OTP
-        const code = generateOTP();
+        // Generate a reference ID for this OTP request
+        const reference = `otp_${Date.now()}`;
 
-        // Store OTP with expiry
+        // Store entry in-memory for rate limiting tracking
+        // Note: BeOn generates and sends the actual OTP code
         otpStore.set(normalizedPhone, {
-            code: code,
+            reference: reference,
             expiresAt: Date.now() + OTP_EXPIRY_MS,
             attempts: 0,
             lastSent: Date.now(),
         });
 
-        // Send via BeOn
+        // Send via BeOn (BeOn generates and delivers the OTP code to the user)
         let sendResult;
         try {
-            sendResult = await sendViaBeOn(normalizedPhone, code, channel);
+            sendResult = await sendViaBeOn(normalizedPhone, reference, channel);
         } catch (beonError) {
             // If WhatsApp fails, try SMS as fallback
             if (channel === 'whatsapp') {
                 console.log('⚠️ WhatsApp failed, falling back to SMS...');
                 try {
-                    sendResult = await sendViaBeOn(normalizedPhone, code, 'sms');
+                    sendResult = await sendViaBeOn(normalizedPhone, reference, 'sms');
                 } catch (smsError) {
                     // Clean up stored OTP on send failure
                     otpStore.delete(normalizedPhone);
