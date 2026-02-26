@@ -151,6 +151,18 @@ module.exports.sendOtp = async (req, res) => {
             }
         }
 
+        // Extract the OTP code that BeOn generated and store it for verification
+        const beonOtp = sendResult?.data?.otp?.toString();
+        if (beonOtp) {
+            const storedEntry = otpStore.get(normalizedPhone);
+            if (storedEntry) {
+                storedEntry.code = beonOtp;
+                console.log(`🔐 OTP code stored for verification (phone: ${normalizedPhone.replace(/.(?=.{4})/g, '*')})`);
+            }
+        } else {
+            console.warn('⚠️ BeOn did not return an OTP code in response. Verification may fail.');
+        }
+
         // Auto-cleanup expired OTPs periodically
         if (otpStore.size > 1000) {
             const now = Date.now();
