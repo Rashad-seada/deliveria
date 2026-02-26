@@ -29,9 +29,18 @@ function generateOTP(length = OTP_LENGTH) {
  * Uses WhatsApp as primary channel with SMS fallback
  */
 async function sendViaBeOn(phone, code, channel = 'whatsapp') {
+    const beonApiKey = process.env.BEON_API_KEY;
+
+    if (!beonApiKey) {
+        console.error('❌ BEON_API_KEY is not set in environment variables!');
+        throw new Error('BEON_API_KEY is not configured on the server.');
+    }
+
     try {
         // Dynamic import for beon-sdk (installed via npm)
         const beon = require('beon-sdk');
+
+        console.log(`📤 Attempting to send OTP via BeOn (${channel}) to ${phone.replace(/.(?=.{4})/g, '*')}...`);
 
         const result = await beon.sendOtp({
             phone: phone,
@@ -39,15 +48,12 @@ async function sendViaBeOn(phone, code, channel = 'whatsapp') {
             code: parseInt(code),
         });
 
-        console.log(`📱 OTP sent via BeOn (${channel}):`, {
-            phone: phone.replace(/.(?=.{4})/g, '*'),
-            success: result?.success,
-            id: result?.id,
-        });
+        console.log(`📱 BeOn OTP send result (${channel}):`, JSON.stringify(result));
 
         return result;
     } catch (error) {
         console.error(`❌ BeOn OTP send failed (${channel}):`, error.message);
+        console.error('   Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
         throw error;
     }
 }
@@ -109,16 +115,20 @@ module.exports.sendOtp = async (req, res) => {
                 } catch (smsError) {
                     // Clean up stored OTP on send failure
                     otpStore.delete(normalizedPhone);
+                    console.error('❌ Both WhatsApp and SMS failed. WhatsApp error:', beonError.message, '| SMS error:', smsError.message);
                     return res.status(500).json({
                         success: false,
                         message: 'Failed to send OTP. Please try again later.',
+                        debug_hint: process.env.NODE_ENV !== 'production' ? beonError.message : undefined,
                     });
                 }
             } else {
                 otpStore.delete(normalizedPhone);
+                console.error('❌ BeOn send failed:', beonError.message);
                 return res.status(500).json({
                     success: false,
                     message: 'Failed to send OTP. Please try again later.',
+                    debug_hint: process.env.NODE_ENV !== 'production' ? beonError.message : undefined,
                 });
             }
         }
