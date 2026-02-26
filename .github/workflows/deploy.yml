@@ -75,6 +75,11 @@ jobs:
             echo "clientEmail=${{ secrets.CLIENT_EMAIL }}" >> .env
             # Handle multi-line private key
             echo "privateKey=\"${{ secrets.PRIVATE_KEY }}\"" >> .env
+            echo "BEON_API_KEY=${{ secrets.BEON_API_KEY }}" >> .env
+            echo "PAYMOB_API_KEY=${{ secrets.PAYMOB_API_KEY }}" >> .env
+            echo "PAYMOB_HMAC_SECRET=${{ secrets.PAYMOB_HMAC_SECRET }}" >> .env
+            echo "PAYMOB_INTEGRATION_ID=${{ secrets.PAYMOB_INTEGRATION_ID }}" >> .env
+            echo "PAYMOB_IFRAME_ID=${{ secrets.PAYMOB_IFRAME_ID }}" >> .env
             
             # Pull latest images and restart services
             # Using --pull always ensures we always get fresh images from Docker Hub
